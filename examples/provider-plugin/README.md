@@ -4,6 +4,12 @@ This independent package depends on Harness and Pydantic. It exports an immutabl
 
 `acme_workspace` is a project workspace backed by Direct Local operations. Its account configuration names an absolute `root`; each Environment configuration selects a `directory` beneath it, and each Environment owns `<root>/<directory>/<environment_id>`.
 
+## Compatibility
+
+This example targets Harness 0.10 and declares the fixed `ProviderManifest(api_version=1)`. Its local development dependency resolves the checkout's source version `0.0.0`; it is not a published compatibility range. Before publishing a standalone plugin, remove the local `[tool.uv.sources]` entries and declare `a13n-harness>=0.10.0,<0.11.0`.
+
+The Host owns target creation, destruction, and recovery policy. The `connector_factory` returns an execution connector and remains inert. Harness middleware uses a separate entry-point group and configuration `schema_version="1"`.
+
 ## Direct use
 
 The installed manifest and a direct import share one definition. Construction validates configuration without performing I/O. The Host explicitly creates the workspace; execution only opens an existing directory.

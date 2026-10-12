@@ -10,7 +10,7 @@ from typing import Any
 
 from a13n_harness.providers.environment.definition import EnvironmentProviderDefinition
 
-PROVIDER_API_VERSION = 3
+PROVIDER_API_VERSION = 1
 ENTRY_POINT_GROUP = "a13n_harness.providers.plugins"
 
 
