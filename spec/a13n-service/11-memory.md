@@ -199,6 +199,14 @@ Recall is [the Harness's](../a13n-harness/21a-record-memory.md#recall): at a run
 
 **Crash recovery.** A process can stop after a write commits and before the next checkpoint. The write tools declare no recovery, so the recovered attempt reports an unknown outcome for that call, and the model reads the file, or searches the records, before writing again. A committed file revision keeps the run and tool call ID. Durable deduplication of repeated writes is not provided.
 
+### Reply source evidence
+
+Automatic recall and file-context observations feed the shared [reply memory source projection](../a13n-stream-protocol/00-overview.md#reply-memory-sources). The Service enriches root-agent observations with memory resource IDs from the attempt's frozen mount plan. Provider namespaces and credentials are never included. Inline agents do not inherit the root's source list; asynchronous children have their own Runs.
+
+Applications receive `delta.item.memory_sources` with an assistant `TEXT_MESSAGE_END`, and the same values in that item's `content.memory_sources` through `GET …/runs/{run}/items`. The usual stream boundary determines durability: a message END alone does not commit a checkpoint. Sources use the existing display pages, tail and continuation, with no separate table or provider lookup on history reads. Attempt takeover retains committed delivery evidence for the same Run; another Run starts its own evidence. Old snapshots have no invented source list.
+
+These are memories automatically loaded during this Run, not proof of which memories caused the answer. `records` excludes results discarded by the context budget; `files` excludes index-only paths and includes whether a delivered prefix was truncated. `sources_truncated` means the reference list itself is partial. Inherited conversation context, guides, and explicit memory tool reads are outside this projection. File cursors are change-feed positions, not atomic revision IDs. Source digests remain unchanged after external edits or deletion and cannot reconstruct old content. Current memory reads retain their own resource authorization; the Run read permission governs its saved evidence. Applications own source presentation and editing controls.
+
 ## Settings
 
 | Setting                                                                          | Governs                                                                                  |
