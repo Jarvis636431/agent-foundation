@@ -1,10 +1,8 @@
-"""E2B as the Service offers it: the E2B cloud, reached with the account's API key.
+"""E2B sandboxes in the E2B cloud or another E2B-compatible service.
 
-The E2B SDK dials the control API and every sandbox under one domain (`api.<domain>` and
-`<port>-<sandbox>.<domain>`) with its own HTTP client. No check before a dial can cover the sandbox names a
-tenant's DNS would answer, so an account names no domain or API URL and reaches only E2B's own.
-
-A renewal extends a sandbox by at most its recipe's timeout, so the timeout is at least the renewal horizon.
+The SDK owns control API and sandbox traffic. Derive the HTTPS control API from the account domain;
+operator network controls own routing restrictions for this opaque transport.
+A renewal extends a sandbox by at most its recipe's timeout, which must cover the renewal horizon.
 """
 
 from dataclasses import replace
@@ -24,7 +22,18 @@ from a13n_service.settings import RENEWAL_HORIZON_SECONDS
 from .configuration import E2BRecipe
 from .definition import E2B as BASE_E2B
 
-_CLOUD = E2BConnectionConfiguration()
+
+class Account(EnvironmentProviderConfiguration):
+    domain: str = Field(
+        default="e2b.dev",
+        title="Sandbox domain",
+        description="Sandbox domain of the E2B-compatible service, without a scheme, port or path.",
+        max_length=253,
+        pattern=r"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$",
+    )
+
+    def connection(self) -> E2BConnectionConfiguration:
+        return E2BConnectionConfiguration(domain=self.domain)
 
 
 class CloudRecipe(E2BRecipe):
@@ -32,7 +41,11 @@ class CloudRecipe(E2BRecipe):
 
 
 async def _provider(*, configuration: BaseModel, credential: E2BCredential | None, runtime: E2BProviderRuntime | None):
-    return await BASE_E2B.open_provider(configuration=_CLOUD, credential=credential, runtime=runtime)
+    if not isinstance(configuration, Account):
+        raise TypeError("E2B requires its Service account configuration")
+    return await BASE_E2B.open_provider(
+        configuration=configuration.connection(), credential=credential, runtime=runtime
+    )
 
 
 def _connector(
@@ -44,9 +57,11 @@ def _connector(
     state: EnvironmentState | None,
     runtime: E2BProviderRuntime | None,
 ):
+    if not isinstance(configuration, Account):
+        raise TypeError("E2B requires its Service account configuration")
     return BASE_E2B.execution.execution_connector(
         environment,
-        configuration=_CLOUD,
+        configuration=configuration.connection(),
         credential=credential,
         environment_id=environment_id,
         state=state,
@@ -56,13 +71,13 @@ def _connector(
 
 E2B = replace(
     BASE_E2B,
-    configuration_model=EnvironmentProviderConfiguration,
+    configuration_model=Account,
     environment_model=CloudRecipe,
     provider_factory=_provider,
     execution=replace(
         BASE_E2B.execution,
-        configuration_model=EnvironmentProviderConfiguration,
+        configuration_model=Account,
         connector_factory=_connector,
-        backend_identity=lambda configuration: BASE_E2B.backend_identity(_CLOUD),
+        backend_identity=lambda configuration: BASE_E2B.backend_identity(configuration.connection()),
     ),
 )
