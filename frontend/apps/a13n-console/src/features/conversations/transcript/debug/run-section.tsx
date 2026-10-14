@@ -12,13 +12,15 @@ import { JsonView } from "../../../../shared/forms";
 import { CopyableId, CopyButton } from "../../../../shared/identity";
 import { MarkdownContent } from "../../../../shared/markdown";
 import { isActiveRun } from "../../api";
-import { formatCost } from "../../../../shared/cost";
+import { exactCost, formatCost } from "../../../../shared/cost";
 import {
   formatDuration,
   formatOffset,
   resultExcerpt,
   tokenFigures,
 } from "../../format";
+import { useRunUsage } from "../../queries";
+import { usageTotals } from "../../usage-table";
 import { runOutcome } from "../../lifecycle";
 import { runRequest, type RunRequest } from "../../request";
 import { ForkRun } from "../../fork-run";
@@ -141,9 +143,7 @@ export function DebugRunSection({
             <RunDetailsDialog run={run} index={index} />
           </span>
         </div>
-        {open && (
-          <RunFacts run={run} totals={timeline.totals} duration={duration} />
-        )}
+        {open && <RunFacts run={run} duration={duration} />}
       </header>
       {open && (
         <RunLog>
@@ -230,21 +230,25 @@ function RunLog({ children }: { children: ReactNode }) {
 /** The Run's figures, each named, on one line under its name. */
 function RunFacts({
   run,
-  totals,
   duration,
 }: {
   run: Schema["RunView"];
-  totals: RunTimeline["totals"];
   duration: number | null;
 }) {
   const { t } = useTranslation();
+  // The heading and Details share one recorded usage snapshot.
+  const usage = useRunUsage(run);
+  const totals = usage.data && usageTotals(usage.data);
   // Tokens nobody reported are unknown, never zero, so they are not shown.
   const figures =
-    totals.reportedUsage &&
+    totals &&
+    (totals.inputTokens > 0 ||
+      totals.outputTokens > 0 ||
+      totals.cachedTokens > 0) &&
     tokenFigures(t, {
       input: totals.inputTokens,
       output: totals.outputTokens,
-      cached: totals.cacheReadTokens,
+      cached: totals.cachedTokens,
     });
   return (
     <dl className={styles.facts}>
@@ -252,7 +256,7 @@ function RunFacts({
         <StartTime at={run.started_at ?? run.created_at} />
       </Fact>
       <Fact label={t("Duration")}>{formatDuration(duration)}</Fact>
-      <Fact label={t("Model calls")}>{totals.modelCalls}</Fact>
+      {totals && <Fact label={t("Model calls")}>{totals.requests}</Fact>}
       {figures && (
         <Fact label={t("Tokens")}>
           <span title={figures.pairTitle}>{figures.pair}</span>
@@ -263,8 +267,19 @@ function RunFacts({
           <span title={figures.cacheTitle}>{figures.rate}</span>
         </Fact>
       )}
-      {totals.costUsd && (
-        <Fact label={t("Cost")}>{formatCost(totals.costUsd)}</Fact>
+      {totals && totals.cost !== null && (
+        <Fact label={t("Cost")}>
+          <span
+            title={
+              totals.unpriced
+                ? t("Known subtotal; some requests were not priced.")
+                : exactCost(totals.cost)
+            }
+          >
+            {formatCost(totals.cost)}
+            {totals.unpriced && "*"}
+          </span>
+        </Fact>
       )}
       <div className={`${styles.fact} ${styles.factId}`}>
         <dt>{t("Run ID")}</dt>
