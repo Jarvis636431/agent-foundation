@@ -1,31 +1,29 @@
-import { PlusIcon } from "@phosphor-icons/react";
 import { Button, ChoiceField, ModalFrame } from "a13n-ui";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useWorkspace } from "../../layout/workspace";
 import type { Schema } from "../../shared/api";
-import { BrandTitle } from "../../shared/dialogs";
-import { ProviderIcon } from "../../shared/identity";
-import { ProviderForm } from "../providers";
+import { EnvironmentProviders } from "./providers";
+import {
+  PageActionsTarget,
+  PageActionClaimed,
+  PageEmptyAction,
+} from "../../shared/page/page-actions";
 import styles from "./environments.module.css";
 
-/** Connection creation owns its credentials; closing unmounts and discards that draft. */
+/** Manage connections without discarding the surrounding template draft. */
 export function TemplateConnection({
   definition,
   providers,
   value,
   onChange,
-  onCreated,
 }: {
   definition: Schema["ProviderType"];
   providers: Schema["Provider"][];
   value: string;
   onChange: (id: string) => void;
-  onCreated: (provider: Schema["Provider"]) => void;
 }) {
-  const { t } = useTranslation(),
-    { can } = useWorkspace();
-  const [open, setOpen] = useState(false);
+  const { t } = useTranslation();
+  const [managing, setManaging] = useState(false);
   const choices = providers.filter(
     (item) => item.enabled && item.type === definition.type,
   );
@@ -42,47 +40,36 @@ export function TemplateConnection({
             label: item.name,
           }))}
         />
-        {can("write") && (
-          <ModalFrame
-            open={open}
-            onOpenChange={setOpen}
-            trigger={
-              <Button type="button" variant="outline">
-                <PlusIcon aria-hidden="true" />
-                {t("Add connection")}
-              </Button>
-            }
-            size="lg"
-            title={
-              <BrandTitle mark={<ProviderIcon type={definition.type} />}>
-                {t("Connect {{provider}}", {
-                  provider: definition.display_name,
-                })}
-              </BrandTitle>
-            }
-            description={t(
-              "This connection is saved separately and remains available if you cancel template creation.",
-            )}
-            closeLabel={t("Close")}
-          >
-            {open && (
-              <ProviderForm
-                kind="environment"
-                createLabel={t("Add connection")}
-                definition={definition}
-                definitions={[definition]}
-                onCreated={onCreated}
-                close={() => setOpen(false)}
-                reload={async () => {}}
-              />
-            )}
-          </ModalFrame>
-        )}
+        <ModalFrame
+          open={managing}
+          onOpenChange={setManaging}
+          trigger={
+            <Button type="button" variant="outline">
+              {t("Manage connections")}
+            </Button>
+          }
+          title={t("Manage connections")}
+          description={t(
+            "View and edit connections, or delete unused ones. Your template draft stays here.",
+          )}
+          closeLabel={t("Close")}
+          size="lg"
+        >
+          {managing && (
+            <PageActionsTarget value={null}>
+              <PageActionClaimed value={false}>
+                <PageEmptyAction value={null}>
+                  <EnvironmentProviders />
+                </PageEmptyAction>
+              </PageActionClaimed>
+            </PageActionsTarget>
+          )}
+        </ModalFrame>
       </div>
       {!choices.length && (
         <p className={styles.panelNote}>
           {t(
-            "No enabled connection for this runtime yet. Add one to continue; your template draft stays here.",
+            "No enabled connection for this runtime yet. Open Manage connections to add one; your template draft stays here.",
           )}
         </p>
       )}

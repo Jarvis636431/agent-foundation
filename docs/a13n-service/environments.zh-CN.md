@@ -26,6 +26,8 @@ Local 和 Docker 自动配置默认关闭；可在 [Service 设置](configuratio
 
 环境 provider 是运行环境所用的账号。像其他 [provider](resources.md#providers) 一样，在 `/api/v1/environment-providers` 中创建。`GET /api/v1/provider-types/environment` 返回各类型的配置、凭据和 recipe schema。
 
+在 Console 中，模板的**连接**选择框旁提供**管理连接**，打开连接列表后不会丢失当前模板草稿。也可从 **Workspace settings → Providers → Environment** 进入同一列表。打开连接可查看配置；拥有工作空间写权限的用户可修改名称、启用状态、配置和凭据，或选择**删除连接**。修改配置时，已有凭据必须重新填写或移除。删除前会列出引用它的模板和环境实例；已停用模板、保留的历史实例也会阻止删除。只有没有引用的连接才能永久删除，删除范围仅为已保存的连接配置和凭据，不会删除 Docker 引擎或原生资源。
+
 ![Console 中的 Sandbox 与环境 provider 目录](../../.github/assets/console-sandbox-providers.webp)
 
 *图中使用 Seed 示例工作空间；Local directory 仅在设置 `provisioning.local.enabled` 时出现，该设置用于开发。*
@@ -42,6 +44,8 @@ Local 和 Docker 自动配置默认关闭；可在 [Service 设置](configuratio
 | `local`   | Worker 宿主机上的目录，供开发使用 | 仅在 `provisioning.local.enabled` 启用时提供。命令直接在 worker 宿主机执行，不构成隔离边界。                                         | 无需停止                   |
 
 Docker provider 默认使用运维人员设置的 `environments.docker_host`；provider 单独设置的 `docker_host` 必须是[出站策略](configuration.md#outbound-requests)允许的远程 TCP 或 HTTPS Engine。访问 Docker Engine 等同于获得宿主机级权限。模板只能绑定 `environments.docker_mount_roots` 下的宿主机目录（默认不允许任何目录）；不支持特权容器和宿主机命名空间。请在 Engine 上限制 CPU、内存和进程用量。[Compose 部署](https://github.com/converge-ai-labs/agent-foundation/tree/main/deploy/docker/compose)连接宿主机 Engine；Kubernetes chart 不包含 Engine。
+
+使用 Docker HTTP 执行时，开启**环境操作通道**并填写**主机访问地址**。监听地址自动使用该 IP（`localhost` 使用 `127.0.0.1`），端口由 Docker 分配。**高级配置**中可覆盖监听 IP、明确允许可信私网 HTTP，或修改凭据文件路径。其他域名需要明确填写监听 IP，因为域名解析结果不一定属于 Docker 宿主机的网络接口。已有明确配置的监听地址会保留。
 
 云托管类型访问厂商持有的 API。E2B 可选择官方云或其他兼容 E2B 协议的服务；其他云托管账号指定组织、团队、工作空间或应用，不指定主机。沙箱费用计入该账号。Service 会在厂商终止前续期，维持就绪的 E2B、Modal、Vercel 或 Runloop 沙箱，因此应设置模板空闲策略来控制费用。provider 凭据可能改为另一个无法访问沙箱的账号。此时环境显示失败 `provider_credential_changed`。恢复沙箱所属账号的凭据后，环境重新可用。续期不能突破厂商硬限制：Modal 在 recipe 的 `timeout_seconds`（最多 24 小时）后终止沙箱，环境随后显示丢失；Vercel 在 recipe 的 `timeout_seconds` 后结束沙箱会话，环境变为停止，下次运行会恢复。如果模板的空闲停止先触发，文件会保留。所有 recipe 字段请参阅 [provider 配置](../environments/configuration-reference.md)。
 
@@ -62,7 +66,7 @@ Service 从配置的沙箱域名推导 HTTPS 控制 API `https://api.<domain>`�
 
 ## 模板
 
-在 Console 中，选择 **环境 → 模板 → 创建模板**，进入独立的创建页面。为模板命名，选择运行方式，再选择已启用的供应商连接或就地添加连接。通过 **云端 / 自有** 标签互选，只展示当前类别。切换回来会恢复之前选择的运行方式，分类不改变供应商的运行行为。设置环境参数和空闲策略后保存。切换运行方式会保留各自的配置草稿。在此添加的连接单独保存，即使取消创建模板，连接仍然存在。保存模板不会启动环境。
+在 Console 中，选择 **环境 → 模板 → 创建模板**，进入独立的创建页面。为模板命名，选择运行方式，再选择已启用的供应商连接或打开**管理连接**添加连接。通过 **云端 / 自有** 标签互选，只展示当前类别。切换回来会恢复之前选择的运行方式，分类不改变供应商的运行行为。设置环境参数和空闲策略后保存。切换运行方式会保留各自的配置草稿。在此添加的连接单独保存，即使取消创建模板，连接仍然存在。保存模板不会启动环境。
 
 模板描述如何构建托管环境，以及何时停止和删除空闲环境。模板属于工作空间，创建和修改需要 `write`。此示例使用 Docker provider；将 `eprov_...` 替换为其 ID。
 
