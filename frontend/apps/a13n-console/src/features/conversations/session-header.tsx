@@ -130,7 +130,11 @@ export function SessionHeader({
           </span>
         )}
         {level === "debug" && (
-          <SessionUsage sessionId={sessionId} threads={threads} />
+          <SessionUsage
+            sessionId={sessionId}
+            threads={threads}
+            thread={thread}
+          />
         )}
         {thread && (
           <ThreadBranches thread={thread} threads={threads} level={level} />
