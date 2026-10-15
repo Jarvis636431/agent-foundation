@@ -2393,5 +2393,14 @@
   "Linux desktop with preinstalled desktop components.": "Linux desktop with preinstalled desktop components.",
   "A standard sandbox for commands and files.": "A standard sandbox for commands and files.",
   "Configure Agent Computer tools and mount permissions separately.": "Configure Agent Computer tools and mount permissions separately.",
-  "Allow the sandbox to connect to external services.": "Allow the sandbox to connect to external services."
+  "Allow the sandbox to connect to external services.": "Allow the sandbox to connect to external services.",
+  "Context window: {{usage}}": "Context window: {{usage}}",
+  "{{used}} / {{capacity}} tokens": "{{used}} / {{capacity}} tokens",
+  "No context usage reported yet.": "No context usage reported yet.",
+  "Context window size is unknown.": "Context window size is unknown.",
+  "This call": "This call",
+  "Last call": "Last call",
+  "used": "used",
+  "{{percent}}% remaining": "{{percent}}% remaining",
+  "Configured limit": "Configured limit"
 }
