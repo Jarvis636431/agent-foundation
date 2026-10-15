@@ -75,9 +75,15 @@ The **Organization** tab shows status and run history, with costs, traces and fi
 
 Read status at `GET /memory-spaces/{id}/organization`, request a round with `POST /memory-spaces/{id}/organizations`, and list rounds with `GET` on that same path. `/memory-spaces/{id}/sessions` lists associated business sessions. Lists paginate with `limit` and `cursor`. File and revision APIs use the Space's returned `memory_id` under `/memories/{memory_id}`. The backing store is managed through the Space and stays out of standalone Memory lists.
 
+### Write from current knowledge
+
+Ordinary agents and organizers automatically track the file versions their conversation has observed. Each file mutation checks those versions within the same memory, atomically with the write. If a source or target changed, the tool returns `read_conflict` and identifies the file to reread.
+
+The agent can continue in the same run: call `memory_file_view`, reconsider the returned content in the next model response, then write again. Harness supplies the version dependencies automatically. A reread refreshes the versions for that next decision; a write already issued alongside the reread keeps its original preconditions. Observations persist with the conversation's checkpoint. The same workflow applies to standalone file memories.
+
 ## Standalone memories
 
-- A **file memory** is a small tree of text files. The Service keeps its files, and the history of every change, in PostgreSQL. Every write checks the file's version at the moment it runs, so a change based on stale content fails and returns the current file instead of overwriting another run's work. [File memory](../a13n-harness/memory.md) explains what the model sees and how to write good memory files.
+- A **file memory** is a small tree of text files. The Service keeps its files, and the history of every change, in PostgreSQL. Agent writes use the conversation's observed file versions to protect changes based on earlier reads. [File memory](../a13n-harness/memory.md) explains what the model sees and how to write good memory files.
 - A **record memory** is a set of short text records, such as "The user prefers metric units", kept in a [mem0](https://mem0.ai) backend through a [Memory Provider](#set-up-a-memory-provider). At the start of each run, the records closest to the run's input are **recalled** into it. Records have no versions: the last write wins.
 
 Threads **mount** memories under names. Each run freezes the thread's memory mounts when it is accepted, sees each memory's context or recalled records at its start, and changes the memories through the `memory_file_*` and `memory_record_*` tools.
