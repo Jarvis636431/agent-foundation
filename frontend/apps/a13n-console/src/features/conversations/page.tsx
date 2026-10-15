@@ -1,4 +1,4 @@
-import { Button, SearchPicker } from "a13n-ui";
+import { Button, Label, SearchPicker, Switch } from "a13n-ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import {
@@ -32,6 +32,11 @@ import type { EnvironmentChoice } from "./composer/options-dialog";
 import { SessionList } from "./list";
 import { SessionAuthorsProvider } from "./message-authors";
 import { SessionHeader } from "./session-header";
+import {
+  defaultSessionMemory,
+  SessionMemoryFields,
+  validSpaceSelection,
+} from "../memories/session-settings";
 import { RunCollapseProvider } from "./transcript/debug/collapse";
 import { ThreadInbox } from "./transcript/inbox";
 import styles from "./conversations.module.css";
@@ -73,7 +78,10 @@ export function NewConversation() {
   async function consoleSession() {
     prepared.current.session ??= data(
       await client.workspace(workspace.id).POST("/api/v1/sessions", {
-        body: { labels: CONSOLE_SESSION_LABELS },
+        body: {
+          labels: CONSOLE_SESSION_LABELS,
+          ...(memory === null ? {} : { memory }),
+        },
       }),
     );
     return prepared.current.session;
@@ -106,6 +114,9 @@ export function NewConversation() {
           .then(data),
       ),
   });
+  const [memory, setMemory] = useState<Schema["SessionMemorySettings"] | null>(
+    null,
+  );
   const enabled = agents.data ?? [];
   const selected = enabled.find((agent) => agent.id === agentId);
   return (
@@ -144,11 +155,43 @@ export function NewConversation() {
             },
           ]}
         />
+        {can("run") && (
+          <div className="grid gap-4">
+            <div className="grid gap-1">
+              <Label className="flex items-center gap-2">
+                <Switch
+                  checked={memory === null}
+                  disabled={!!prepared.current.session}
+                  onCheckedChange={(inherit) =>
+                    setMemory(inherit ? null : defaultSessionMemory)
+                  }
+                />
+                {t("Use agent memory defaults")}
+              </Label>
+              <p className="text-muted-foreground text-xs">
+                {t(
+                  "The first agent's settings apply to this session. Turn off to choose your own.",
+                )}
+              </p>
+            </div>
+            {memory !== null && (
+              <SessionMemoryFields
+                value={memory}
+                onChange={setMemory}
+                disabled={!!prepared.current.session}
+              />
+            )}
+          </div>
+        )}
         <Composer
           initial={
             message ? { content: [{ type: "text", text: message }] } : undefined
           }
-          disabled={!can("run") || !agentId}
+          disabled={
+            !can("run") ||
+            !agentId ||
+            (memory !== null && !validSpaceSelection(memory))
+          }
           agentName={selected?.name}
           options={<RunOptions options={options} showAgent={false} />}
           submit={async (payload) => {

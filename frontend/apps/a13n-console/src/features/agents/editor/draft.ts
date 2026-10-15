@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { validSpaceSelection } from "../../memories/space-form";
 import { isRecord } from "../../../service-client";
 import type { Schema } from "../../../shared/api";
 import { jsonObject, validateSettings } from "../../../shared/forms";
@@ -66,7 +67,8 @@ export function useAgentDraft(initial: AgentConfig) {
     [reviewer, setReviewer] = useState(initial.reviewer),
     [skills, setSkills] = useState(initial.skills ?? []),
     [connections, setConnections] = useState(initial.connection_tools ?? []),
-    [memoryMounts, setMemoryMounts] = useState(initial.memory_mounts ?? []);
+    [memoryMounts, setMemoryMounts] = useState(initial.memory_mounts ?? []),
+    [memory, setMemory] = useState(initial.memory ?? {});
   const dirty =
     JSON.stringify(reviewer) !== JSON.stringify(initial.reviewer) ||
     mediaKinds.some(
@@ -86,6 +88,7 @@ export function useAgentDraft(initial: AgentConfig) {
     JSON.stringify(skills) !== JSON.stringify(initial.skills ?? []) ||
     JSON.stringify(connections) !==
       JSON.stringify(initial.connection_tools ?? []) ||
+    JSON.stringify(memory) !== JSON.stringify(initial.memory ?? {}) ||
     JSON.stringify(memoryMounts) !==
       JSON.stringify(initial.memory_mounts ?? []);
   return {
@@ -117,6 +120,8 @@ export function useAgentDraft(initial: AgentConfig) {
     setConnections,
     memoryMounts,
     setMemoryMounts,
+    memory,
+    setMemory,
     dirty,
   };
 }
@@ -180,6 +185,12 @@ export function buildDraftConfig(
     };
   }
   try {
+    if (!validSpaceSelection(draft.memory))
+      throw new Error(
+        t(
+          "Use unique mount names: lowercase letters, digits and hyphens, starting with a letter.",
+        ),
+      );
     return {
       ok: true,
       config: buildConfig(
@@ -197,6 +208,7 @@ export function buildDraftConfig(
             : {}),
           connection_tools: draft.connections,
           memory_mounts: draft.memoryMounts,
+          memory: draft.memory,
           default_environment_template_id: draft.environmentTemplateId,
         },
         draft.advanced,

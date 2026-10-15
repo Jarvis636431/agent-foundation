@@ -655,6 +655,28 @@
       "title": "RetryConfig",
       "type": "object"
     },
+    "SessionMemorySettings": {
+      "additionalProperties": false,
+      "description": "Participation and complete Space selection; policy belongs to each Space.",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "spaces": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/SpaceBinding"
+          },
+          "maxItems": 32,
+          "title": "Spaces",
+          "type": "array"
+        }
+      },
+      "title": "SessionMemorySettings",
+      "type": "object"
+    },
     "SharedSkillSync": {
       "additionalProperties": false,
       "description": "Publish mutable conventional names; the last completed publication wins.",
@@ -707,6 +729,33 @@
         "skill_id"
       ],
       "title": "SkillSelection",
+      "type": "object"
+    },
+    "SpaceBinding": {
+      "additionalProperties": false,
+      "description": "A named Space selected by the App or inherited from Agent defaults.",
+      "properties": {
+        "access": {
+          "$ref": "#/$defs/MemoryAccess",
+          "default": "write"
+        },
+        "name": {
+          "pattern": "^[a-z][a-z0-9-]{0,62}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "space_id": {
+          "maxLength": 41,
+          "pattern": "^[a-z][a-z0-9]{1,7}_[0-9a-f]{20,32}$",
+          "title": "Space Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "space_id"
+      ],
+      "title": "SpaceBinding",
       "type": "object"
     },
     "SubagentSelection": {
@@ -1058,6 +1107,9 @@
     },
     "media_understanding": {
       "$ref": "#/$defs/MediaUnderstandingSelection"
+    },
+    "memory": {
+      "$ref": "#/$defs/SessionMemorySettings"
     },
     "memory_mounts": {
       "default": [],

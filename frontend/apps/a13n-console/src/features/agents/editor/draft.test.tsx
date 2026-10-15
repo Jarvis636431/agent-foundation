@@ -189,6 +189,39 @@ it("preserves raw settings and distinguishes inheritance from explicit clearing"
   expect(built.ok && built.config.model_settings).toEqual({ thinking: false });
 });
 
+it("publishes session memory defaults independently of shared mounts", () => {
+  const memory = {
+    enabled: true,
+    spaces: [{ name: "team", space_id: "msp_00000000000000000001" }],
+  };
+  const reviewer = { model: "review-model" };
+  const draft = draftFor({ memory, reviewer });
+  expect(draft.current.memory).toEqual(memory);
+  expect(JSON.parse(draft.current.advanced)).not.toHaveProperty("memory");
+  expect(draft.current.dirty).toBe(false);
+  act(() => draft.current.setMemory({ ...memory, enabled: false }));
+  expect(draft.current.dirty).toBe(true);
+  const built = buildDraftConfig(draft.current, undefined, asIs);
+  expect(built.ok && built.config.memory).toEqual({
+    ...memory,
+    enabled: false,
+  });
+  expect(built.ok && built.config.memory_mounts).toEqual([]);
+  expect(built.ok && built.config.reviewer).toEqual(reviewer);
+  act(() =>
+    draft.current.setMemory({
+      enabled: true,
+      spaces: [{ name: "Invalid name", space_id: "msp_00000000000000000001" }],
+    }),
+  );
+  const invalid = buildDraftConfig(draft.current, undefined, asIs);
+  expect(invalid.ok).toBe(false);
+  expect(!invalid.ok && invalid.stage).toBe("advanced");
+  expect(!invalid.ok && invalid.error.message).toBe(
+    "Use unique mount names: lowercase letters, digits and hyphens, starting with a letter.",
+  );
+});
+
 it("requires a reviewer for declared builtin and connection review permissions", () => {
   for (const config of [
     {

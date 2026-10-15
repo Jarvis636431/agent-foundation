@@ -26,10 +26,11 @@ from a13n_service.infra.ids import ObjectId
 from a13n_service.infra.labels import Labels
 from a13n_service.resources.agents.schemas import AgentConfig, AgentOverride, AgentRevision
 from a13n_service.resources.connections.headers import normalize_headers
-from a13n_service.resources.memories.schemas import MemoryMount, MemoryMounts
+from a13n_service.resources.memories.schemas import MemoryMount, MemoryMounts, SessionMemorySettings
 from a13n_service.runs.display import Item
 from a13n_service.runs.environments.schemas import DEFAULT_MOUNT_PERMISSIONS, MAX_MOUNTS, MountCreate
 from a13n_service.runs.history import MessageHistory
+from a13n_service.runs.memories.schemas import FrozenMemoryMount
 from a13n_service.tenancy.schemas import PrincipalSummary
 
 type RunStatus = Literal["accepted", "running", "waiting", "completed", "failed", "cancelled"]
@@ -336,12 +337,26 @@ class EnvironmentMount(_Frozen):
     permission_ceiling: EnvironmentPermissionSet = DEFAULT_MOUNT_PERMISSIONS
 
 
+class SpaceOrganizationStatus(_Frozen):
+    session_id: str | None = None
+    history_gap: bool = False
+    pending: bool = False
+    active_run_id: str | None = None
+    last_run_id: str | None = None
+    due_at: datetime | None = None
+    processed_seq: int = 0
+    failure: Failure | None = None
+
+
 class SessionCreate(_Frozen):
     labels: Labels = Field(default_factory=dict)
+    # Omitted/null inherits the first accepted business Agent revision's defaults.
+    memory: SessionMemorySettings | None = None
 
 
 class SessionUpdate(_Frozen):
-    labels: Labels
+    labels: Labels | None = None
+    memory: SessionMemorySettings | None = None
 
 
 class SessionQuery(_Frozen):
@@ -380,6 +395,8 @@ class SessionView(BaseModel):
     created_by_id: str
     last_run_id: str | None
     run_count: int = 0
+    memory: SessionMemorySettings = Field(default_factory=SessionMemorySettings)
+    purpose: Literal["conversation", "memory_organization"] = "conversation"
     preview: SessionPreview | None = None
     version: int
     created_at: datetime
@@ -393,6 +410,7 @@ class SessionPage(BaseModel):
 
 class ThreadView(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+    purpose: Literal["conversation", "memory_organization"] = "conversation"
     message_history: MessageHistory
     id: str
     workspace_id: str
@@ -468,7 +486,7 @@ class RunView(BaseModel):
     wait_reason: WaitReason | None
     pending: Pending | None
     environment_mounts: list[EnvironmentMount]
-    memory_mounts: list[MemoryMount]
+    memory_mounts: list[MemoryMount | FrozenMemoryMount]
     # The options its message chose, frozen at acceptance; a resume or child result inherits its origin's.
     options: RunOptions
     current_attempt_id: str | None

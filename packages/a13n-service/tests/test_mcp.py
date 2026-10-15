@@ -239,6 +239,15 @@ def test_worker_has_no_mcp_and_unmarked_routes_are_absent() -> None:
     assert ("/api/v1/usage", "get") in selected
     assert ("/api/v1/skills", "post") in selected
     assert {
+        ("/api/v1/sessions", "get"),
+        ("/api/v1/sessions/{session_id}", "get"),
+        ("/api/v1/memory-spaces", "get"),
+        ("/api/v1/memory-spaces/{space_id}", "get"),
+        ("/api/v1/memory-spaces/{space_id}/organization", "get"),
+        ("/api/v1/memory-spaces/{space_id}/organizations", "get"),
+        ("/api/v1/memory-spaces/{space_id}/sessions", "get"),
+    } <= selected
+    assert {
         ("/api/v1/findings", "get"),
         ("/api/v1/findings/{finding_id}", "get"),
         ("/api/v1/finding-analyses", "get"),
@@ -250,7 +259,8 @@ def test_worker_has_no_mcp_and_unmarked_routes_are_absent() -> None:
         ("/api/v1/finding-agent", "post"),
     }.isdisjoint(selected)
     assert not any(
-        "/auth" in path or "/uploads" in path or "/organizations" in path or "/users" in path for path, _ in selected
+        "/auth" in path or "/uploads" in path or path.startswith("/api/v1/organizations") or "/users" in path
+        for path, _ in selected
     )
     assert not any(path.endswith("/content") or path.endswith("/authorize") for path, _ in selected)
     tools = api_tools(

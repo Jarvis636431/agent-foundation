@@ -91,6 +91,39 @@ Memory paths take the memory's ID. The view adds `inherited_guide`, what a null 
 
 Every change is audited as `memory.{create | update | delete}`.
 
+## Memory Spaces
+
+A **Memory Space** is a reusable workspace resource with one managed PostgreSQL file Memory. Apps map their users, projects or other business scopes to Spaces and explicitly select them for Sessions. Standalone file and record Memories retain their existing lifecycle.
+
+A Space owns `{name, description, labels, enabled, organization: {enabled, model}, guide, always_load}`. The API exposes its managed `memory_id`, storage counters and configuration version. `always_load` defaults to `global/MEMORY.md`. `POST /memory-spaces` creates the Space and its backing store atomically (`write`). Reads and lists require `read`; lists support `label` and `enabled`. `PATCH /memory-spaces/{id}` requires `write` and the Space's `If-Match`. A backing-guide or always-load edit also advances that ETag. Organization requires a configured model; configuring it validates the model and captures the configuring actor's execution authority.
+
+The managed Memory stays out of standalone Memory lists and rejects raw mounts, generic configuration updates and generic deletion. File and revision management uses the existing `/memories/{memory_id}/files` and `/revisions` APIs, with their existing permissions and CAS semantics, even while the Space is disabled. Disabling preserves files, revisions, bindings, policy and organization history. Space deletion requires `write`, `If-Match`, no Session binding and no unsealed Run with a frozen Space mount; it removes the backing files and revisions atomically and retains ordinary organization Run history.
+
+### Session selection and Run views
+
+Agent `memory` defaults are `{enabled: false, spaces: []}`. A binding is `{name, space_id, access: "read" | "write"}` with write as the default. Names and Space IDs are unique within a selection. `POST /sessions` and `PATCH /sessions/{id}` accept these fields under workspace `run`; PATCH also requires the Session's `If-Match`. Omitted fields stay unchanged and an explicit `spaces` list replaces the entire selection, including an empty list. Referenced Spaces must belong to the workspace. Session selection lives in the Session's `memory` JSON, independently of Space configuration.
+
+At the first accepted business Run, Agent defaults fill fields the App has not explicitly chosen. This snapshot commits atomically with acceptance under the Session lock; a refused Run leaves it unresolved. Concurrent first acceptances choose one snapshot. Later Agent edits, a different Agent, forks and children do not replace a settled Session's selection. Enabling an empty selection creates no resource and supplies no Space tools.
+
+Each new Run freezes enabled selected Spaces, mount names and access, and these allowed roots:
+
+- `global/`: shared knowledge, readable and writable according to the binding;
+- `sessions/{session_id}/`: only that business Session's notes.
+
+The organizer receives `global/` and all of `sessions/`. These roots govern listing, reading, search, moves, change feeds and always-loaded context. Paths are canonicalized before scope checks; both endpoints of a move must be allowed. Writes use the file store's CAS. Ordinary context also includes the Session's `MEMORY.md` when present. Management access remains workspace-scoped.
+
+Space mounts join standalone Thread mounts within the combined mount limit; a name collision refuses acceptance. A child's Space mounts are limited to its parent's frozen selection, subject to current Space enablement and Session participation. Accepted Runs and their later attempts retain their frozen view. Execution authorization and Agent tool permissions apply as described in [Execution](#execution). With no effective memories, no memory capability is supplied.
+
+### Organization lifecycle
+
+Each Space has one lazily created organization Session with `purpose: memory_organization`. Every round starts an independent Thread in that Session. A pinned built-in `memory_organizer` Agent receives only memory tools and the Space write mount. It consolidates saved facts and maintains `global/MEMORY.md`, preserving provenance, uncertainty and conflicting claims. Each round has a 200-model-request ceiling. The dedicated Session rejects ordinary conversation creation, forks and memory selection edits; [conversation lists](05-runs.md#reads) exclude it.
+
+A bounded control sweep discovers saved changes by the backing store's sequence, including API edits. The Space lock coalesces requests and admits at most one active round. Automatic admission requires both Space and organization enablement, saved changes and at least one file. `POST /memory-spaces/{id}/organizations` (`run`, 202) requests a manual round using the configured policy and coalesces with an active round. Admission checks the configuring actor's captured authority, current grants and current resource availability. Organization uses ordinary Runs, Attempts, leases, checkpoints, cancellation, usage and file attribution; no transaction spans model execution. Disabling stops new admission and preserves accepted work.
+
+`GET /memory-spaces/{id}/organization` exposes pending manual requests, organization Session ID, active and last Run IDs, the processed sequence, next due time, history-gap status and failure, independently of the Space configuration version. Only a completed round whose retained revisions prove that all changes after its source sequence belong to that round advances `processed_seq`. Concurrent external changes, cancellation, failure and insufficient retained history leave progress unchanged; committed partial edits remain. Settlement consumes the organizer's own edits and leaves confirmed concurrent external changes eligible under the current automatic policy. A history gap alone does not schedule another round. Later external writes, policy reconfiguration or a manual request can make new work eligible. Admission failures remain observable and retry with a five-minute cooldown.
+
+`GET /memory-spaces/{id}/organizations` returns ordinary Run views newest first; `/sessions` lists currently associated business Sessions. Both paginate with `limit` and `cursor`. Organization usage, attempts, traces and file revisions use the ordinary Run APIs. Workspace usage includes organization cost.
+
 ## The PostgreSQL store
 
 `PostgresFileStore` implements the Harness `SearchableFileStore` for one memory, and the API's file operations use the same functions. Each call runs in its own short session or transaction; none spans a tool call.
@@ -166,11 +199,11 @@ A thread's **memory mounts** name the memories its later runs use: `{name, memor
 Mounts reach a thread in these ways:
 
 - **New threads and forks** may name initial `memories`, added in the transaction that creates the thread. A fork also copies the origin thread's mounts; copied and named mounts count together.
-- **Agent defaults.** An agent configuration's `memory_mounts` ([04](04-resources.md#agents)) join at the thread's **first acceptance**, before any run of the thread has sealed: each default whose name and memory the thread does not use yet is mounted. A default whose memory is gone refuses the start, and the entry fails with `invalid_argument` at `memory_mounts.{index}.memory_id`; defaults that would exceed the limit fail it with `memory_mount_limit`. Afterwards only the thread's own mounts count, so removing a default's mount keeps it removed.
-- **Child threads** adopt their parent run's frozen memory mounts, except memories deleted since, and then take their own agent's defaults at their first acceptance.
+- **Agent defaults.** An agent configuration's `memory_mounts` ([04](04-resources.md#agents)) join at the thread's **first acceptance**, before any run of the thread has sealed: each default whose name and memory the thread does not use yet is mounted. A default whose memory is gone refuses the start, and the entry fails with `invalid_argument` at `memory_mounts.{index}.memory_id`; defaults that would exceed the limit fail it with `memory_mount_limit`. Afterwards agent defaults are no longer added, so removing an agent default's mount keeps it removed. Session Space selections are evaluated separately at each business acceptance.
+- **Child threads** adopt their parent run's standalone mounts, except memories deleted since, and then take their own agent's standalone defaults at their first acceptance. Space mounts follow [Session selection and Run views](#session-selection-and-run-views).
 - **Archive** removes the thread's memory mounts with its environment mounts ([05](05-runs.md#waiting-interrupt-and-fork)).
 
-Mount edits affect later runs only. **Acceptance** freezes the thread's mounts, ordered by name, into `runs.memory_mounts` `[{name, memory_id, access, recall}]`, which never changes afterwards.
+Mount edits affect later runs only. **Acceptance** freezes the thread's standalone mounts and applicable Space mounts, ordered by name, into `runs.memory_mounts`. Each entry holds `{name, memory_id, access, recall}`; Space entries also hold `space_id` and `roots`. The frozen set never changes afterwards.
 
 ## Execution
 
@@ -178,7 +211,7 @@ The attempt's plan session reads each frozen mount's memory, skipping memories d
 
 For its file memories, the attempt builds the Harness `FileMemoryCapability` with:
 
-- one `PostgresFileStore` per mount, bound to its memory, and a `FileMount` with the mount's name and access, the memory's `guide`, or its `inherited_guide` when null, its `always_load` paths and the memory ID as cursor key;
+- one `PostgresFileStore` per mount, bound to its memory, and a `FileMount` with the mount's name and access, the memory's `guide`, or its `inherited_guide` when null, its `always_load` paths and a cursor key identifying the memory and visible roots; standalone memories use the memory ID;
 - limits from `memory.*`: the file format, `context_bytes`, `always_load_bytes` and `write_retries`;
 - the enabled file tools of the `memory` toolset, `file_view`, `file_grep`, `file_create`, `file_edit`, `file_append`, `file_move` and `file_delete`; tool permissions apply to their tool IDs `memory.file.*`. With the toolset disabled the run still receives its memories' context, with no tools;
 - `Origin(run_id, principal_id)`, to which each tool call adds its ID;
@@ -195,7 +228,7 @@ Recall is [the Harness's](../a13n-harness/21a-record-memory.md#recall): at a run
 
 **Per-call checks.** Before each store call the store checks the run's principal under the run's frozen authority: `read` for reads, `run` for changes. A refusal is the store error `forbidden`, and a memory deleted meanwhile is `memory_deleted`; a record memory's provider disabled meanwhile is `unavailable`. Each fails only that tool call or recall. The effective access of a call is therefore the authority, intersected with the mount's access, intersected with the agent's tool configuration. A grant revoked during the run is caught by the attempt's authority renewal ([05](05-runs.md#claim-heartbeat-and-authority)). A record store's checks read the database in their own short session, and its backend call follows after the session closes. Record store calls are not paid dispatches and do not pass the run's call check ([05](05-runs.md#execute)).
 
-**Cursors.** `runs.memory_cursors` maps memory IDs to the change-feed cursor of the context the run's history holds. A new run starts from its parent's cursors for each memory still mounted under the same name; any other memory, including one rebound to another name, gets full context. The `Boundaries` capability snapshots the capability's cursors together with the state it exports at each boundary, and the checkpoint commit stores that snapshot with the state pointer in the same fenced transaction ([05](05-runs.md#assignment-and-incorporation)); a completed or waiting outcome commits the final snapshot. A recovered attempt therefore starts from cursors that match its restored history, and context the lost attempt delivered after its last commit is delivered again. What the Harness does with the cursors is [its](../a13n-harness/21-file-memory.md#context-projection-and-cursors): context only at a run's first input, full when there is no cursor or the feed resyncs, changed paths otherwise, and cleared cursors after a context restore. A run's own writes appear in its thread's next change list.
+**Cursors.** `runs.memory_cursors` maps memory-and-scope keys to the change-feed cursor of the context the run's history holds. A new run inherits a parent's cursor only when the mount name, memory and visible roots match; other mounts get full context. The `Boundaries` capability snapshots the capability's cursors together with the state it exports at each boundary, and the checkpoint commit stores that snapshot with the state pointer in the same fenced transaction ([05](05-runs.md#assignment-and-incorporation)); a completed or waiting outcome commits the final snapshot. A recovered attempt therefore starts from cursors that match its restored history, and context the lost attempt delivered after its last commit is delivered again. What the Harness does with the cursors is [its](../a13n-harness/21-file-memory.md#context-projection-and-cursors): context only at a run's first input, full when there is no cursor or the feed resyncs, changed paths otherwise, and cleared cursors after a context restore. A run's own writes appear in its thread's next change list.
 
 **Crash recovery.** A process can stop after a write commits and before the next checkpoint. The write tools declare no recovery, so the recovered attempt reports an unknown outcome for that call, and the model reads the file, or searches the records, before writing again. A committed file revision keeps the run and tool call ID. Durable deduplication of repeated writes is not provided.
 

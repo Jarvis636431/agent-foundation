@@ -17,10 +17,10 @@ from a13n_service.infra.ids import Key, ObjectId
 from a13n_service.infra.labels import Labels
 from a13n_service.infra.platform import PlatformGroup
 from a13n_service.providers.model_settings import JsonSettings
-from a13n_service.resources.agents.tables import AgentSource
+from a13n_service.resources.agents.tables import AgentSource, PresetKind
 from a13n_service.resources.agents.toolsets import ToolsetOverrides, Toolsets, default_toolsets
 from a13n_service.resources.connections.schemas import ConnectionSelection
-from a13n_service.resources.memories.schemas import MemoryMounts
+from a13n_service.resources.memories.schemas import MemoryMounts, SessionMemorySettings
 from a13n_service.resources.models.schemas import MediaUnderstandingSelection
 
 BoundedKey = Annotated[str, StringConstraints(pattern=r"^[A-Za-z_][A-Za-z0-9_.:-]{0,127}$")]
@@ -194,6 +194,8 @@ class AgentConfig(_Frozen):
     lazy_environment: bool = True
     # Added to a thread's memory mounts at its first acceptance, for names and memories it does not use yet.
     memory_mounts: MemoryMounts = ()
+    # Snapshotted by a new Session at its first business acceptance unless explicitly configured.
+    memory: SessionMemorySettings = Field(default_factory=SessionMemorySettings)
 
     @model_validator(mode="after")
     def unique_selections(self) -> Self:
@@ -369,7 +371,7 @@ class Agent(BaseModel):
     labels: dict[str, str]
     default_revision_id: str | None
     source: AgentSource
-    preset_kind: Literal["composer", "finding"] | None = None
+    preset_kind: PresetKind | None = None
     image_url: str | None
     archived_at: datetime | None
     version: int

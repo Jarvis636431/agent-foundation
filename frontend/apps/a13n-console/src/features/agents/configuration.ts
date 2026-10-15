@@ -12,7 +12,7 @@ const sectionFields = {
   instructions: ["instructions"],
   skills: ["skills"],
   connections: ["connection_tools"],
-  memory: ["memory_mounts"],
+  memory: ["memory_mounts", "memory"],
   toolsets: ["toolsets"],
   reviewer: ["reviewer"],
   environment: ["default_environment_template_id"],
@@ -64,6 +64,7 @@ export function buildConfig(
     | "skills"
     | "connection_tools"
     | "memory_mounts"
+    | "memory"
     | "toolsets"
     | "reviewer"
     | "default_environment_template_id"
