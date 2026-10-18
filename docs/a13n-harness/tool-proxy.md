@@ -5,7 +5,20 @@ description: Expose large tool collections through search and call tools so the 
 
 ToolProxy exposes large collections of local tools through two model-facing control tools: `search_proxy_tools` and `call_proxy_tool`. The model sees a compact list of domains, discovers exact argument schemas when needed, and invokes the selected tool with an arguments object.
 
-ToolProxy changes discovery and call presentation only. Pydantic AI's current `ToolManager`, the original Toolset, and the normal Harness execution boundary still own validation, policy, credentials, hooks, results, and usage. It is not a second execution engine or an MCP client.
+Tools execute through the current `ToolManager`, their original Toolset, and the Harness execution boundary. This path handles validation, policy, credentials, hooks, results, and usage.
+
+## Select native tool search
+
+Choose how the model discovers and calls grouped tools with `native_search` on `ToolProxyCapability` or `ToolProxyPlan`:
+
+- `False` (default): use `search_proxy_tools` and `call_proxy_tool`. Customize these controls with `ToolProxyConfig`.
+- `True`: use native tool search through `ToolSearch`. Grouped tools have `defer_loading=True` and names such as `crm__customer_name`. The model calls each tool directly after discovery, using the standard usage accounting and approval/resume flow. Source Toolset instructions retain their normal behavior.
+
+Native mode requires a model and protocol that support native tool search. Unsupported models raise `native_tool_search_unsupported`; Harness does not fall back to another search mode. Tools execute locally with their existing permissions. Configure MCP sources with `native=False, local=True` in either mode.
+
+Use the default ToolProxy mode for CodeAct orchestration. CodeAct currently excludes deferred tools, including those already discovered through native search.
+
+The examples below use the default ToolProxy mode.
 
 ## Group a Toolset
 

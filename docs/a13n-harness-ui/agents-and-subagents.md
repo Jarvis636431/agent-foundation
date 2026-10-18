@@ -188,6 +188,7 @@ Group large MCP and Harness Plugin tool collections without loading every tool s
 ```yaml
 # In agents/coder.yaml; referenced resources must already exist.
 tool_proxy:
+  native_search: false
   groups:
     knowledge:
       description: Search project documents and organizational memory
@@ -199,6 +200,10 @@ tool_proxy:
     max_results: 10
     max_search_bytes: 32768
 ```
+
+`native_search: false` is the default: the model uses ToolProxy's search and call tools, configured through `config`. Set `native_search: true` to let the model discover the same grouped tools through native tool search and call them directly. Both modes retain grouped tool names and local execution.
+
+For native mode, select a Model that supports native tool search. Unsupported Models fail before the model request, without fallback. See [native tool search](../a13n-harness/tool-proxy.md#select-native-tool-search) for execution details.
 
 `config` is optional. Group names start with a letter, contain up to 32 letters, digits, underscores or hyphens, and cannot contain `__`. Descriptions must be nonblank and at most 512 characters. Select exact resource IDs, including distinct IDs for multiple instances of the same plugin. A source belongs to one group only. Different sources in a group must have distinct tool names; collisions fail rather than inventing aliases.
 
