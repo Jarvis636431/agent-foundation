@@ -5028,7 +5028,7 @@ export interface components {
     };
     /**
      * ContextUsage
-     * @description One reported generation, compared with its currently configured window.
+     * @description A Run's configured window and its latest eligible generation, when available.
      */
     ContextUsage: {
       /** Context Window Tokens */
@@ -5038,7 +5038,7 @@ export interface components {
       /** Output Tokens */
       output_tokens: number | null;
       /** Record Id */
-      record_id: string;
+      record_id: string | null;
       /** Run Id */
       run_id: string;
     };
