@@ -60,13 +60,38 @@ def test_revisions_match_metadata_and_rules(empty_database: Database, database: 
     assert len(migrated) >= len(OSS.rules())
 
 
+def test_monitoring_revision_upgrades_and_restores_main_schema(empty_database: Database) -> None:
+    with migration_connection(empty_database, OSS) as config:
+        command.upgrade(config, "9cc1d8d6a9c0")
+    original_rules = rows(empty_database, RULES)
+    original_objects = rows(empty_database, OBJECTS)
+    columns = (
+        "SELECT column_name, data_type, is_nullable, column_default FROM information_schema.columns"
+        " WHERE table_schema = 'public' AND table_name = 'environments' ORDER BY ordinal_position"
+    )
+    original_columns = rows(empty_database, columns)
+    upgrade(empty_database, OSS)
+    check(empty_database, OSS)
+    assert rows(empty_database, "SELECT version_num FROM alembic_version") == [("36c442fa1a5e",)]
+    with migration_connection(empty_database, OSS) as config:
+        # Retire only the monitoring branch; keep main's occurrence completion schema.
+        command.downgrade(config, "7d5bc53a5535@33e2cc388478")
+    assert rows(empty_database, "SELECT version_num FROM alembic_version") == [("9cc1d8d6a9c0",)]
+    assert rows(empty_database, RULES) == original_rules
+    assert rows(empty_database, OBJECTS) == original_objects
+    assert rows(empty_database, columns) == original_columns
+    upgrade(empty_database, OSS)
+    check(empty_database, OSS)
+
+
 def test_schedule_revision_upgrades_and_restores_main_schema(empty_database: Database) -> None:
     with migration_connection(empty_database, OSS) as config:
         command.upgrade(config, "fed344f2d755")
     original_rules = rows(empty_database, RULES)
     original_objects = rows(empty_database, OBJECTS)
-    upgrade(empty_database, OSS)
-    check(empty_database, OSS)
+    # Exercise schedules independently of later monitoring revisions.
+    with migration_connection(empty_database, OSS) as config:
+        command.upgrade(config, "33e2cc388478")
     assert len(rows(empty_database, "SELECT version_num FROM alembic_version")) == 1
     assert rows(
         empty_database,
