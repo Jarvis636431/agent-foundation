@@ -24,6 +24,7 @@ from a13n_service.runs.attachments import asset_fields, require_readable
 from a13n_service.runs.environments.mounts import mount_environments, shared_mounts, thread_has_primary
 from a13n_service.runs.inbox import Request, append_message, check_replay, find_request
 from a13n_service.runs.memories.mounts import mount_memories, shared_memory_mounts
+from a13n_service.runs.memories.session_memory import configure
 from a13n_service.runs.runs import run_view
 from a13n_service.runs.runtime import Runtime
 from a13n_service.runs.schemas import EntryView, Fork, Message, NewThread, RunOptions, Submitted, ThreadView
@@ -190,7 +191,7 @@ async def prepare_thread(
         owner = await find_session(session, scope.workspace_id, body.session_id)
         require_conversation(owner)
     else:
-        owner = new_session(scope.organization_id, scope.workspace_id, actor.id)
+        owner = new_session(scope.organization_id, scope.workspace_id, actor.id, body.session)
         session.add(owner)
     thread = new_thread(
         owner,
@@ -200,6 +201,9 @@ async def prepare_thread(
     )
     session.add(thread)
     await session.flush()
+    if body.session is not None and body.session.memory is not None:
+        await configure(session, owner, body.session.memory)
+        await session.flush()
     await mount_environments(session, thread, body.environments, principal_id=actor.id)
     await mount_memories(session, thread, body.memories, limit=runtime.settings.memory.mounts_per_thread)
     return thread, await _append(session, runtime, actor, scope, thread, body, request, authority=authority)
