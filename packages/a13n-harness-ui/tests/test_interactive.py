@@ -211,7 +211,7 @@ for arguments in {invocations!r}:
     assert not (tmp_path / ".a13n-harness-ui").exists()
 
 
-async def _seed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+async def _seed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, shell_review: bool = False) -> Path:
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("CODEX_HOME", str(tmp_path / "codex"))
     (tmp_path / "codex").mkdir()
@@ -225,7 +225,7 @@ async def _seed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         project="project-local",
         project_path=str(tmp_path),
         environment_profile="environment-native",
-        shell_review=False,
+        shell_review=shell_review,
     )
     validate = AgentCompositionResolver(HarnessUiExtensionCatalog()).validate_generation
     await preview_setup(path, selection, validate_candidate=validate)
@@ -691,7 +691,7 @@ async def test_onboarding_import_enrolls_inheriting_subagent_and_is_retryable(
 @pytest.mark.anyio
 @pytest.mark.parametrize("composed", [False, True])
 @pytest.mark.parametrize("mode", ["concise", "detailed"])
-async def test_active_guidance_reaches_native_model_in_order_without_another_root_run(
+async def test_queued_guidance_reaches_native_model_in_order_without_another_root_run(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, composed: bool, mode: str
 ) -> None:
 
@@ -700,6 +700,7 @@ async def test_active_guidance_reaches_native_model_in_order_without_another_roo
     from pydantic_ai.messages import ModelRequest, TextContent, UserPromptPart
 
     path = await _seed(tmp_path, monkeypatch)
+    path.write_text(path.read_text() + "\ninput:\n  steering_mode: queued\n")
     entered, release = asyncio.Event(), asyncio.Event()
     observed = []
 

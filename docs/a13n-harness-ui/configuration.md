@@ -299,18 +299,39 @@ Display defaults are read at startup. `--display` and live `/mode` override the 
 
 ### Built-in tools and subagents
 
-| Field                               | Default | Meaning                                                                                                |
-| ----------------------------------- | ------- | ------------------------------------------------------------------------------------------------------ |
-| `tools.enable_ask_user_question`    | `true`  | Include native `ask_user_question` in newly resolved Runs                                              |
-| `tools.interaction_timeout_seconds` | `120`   | Positive finite seconds per TUI interaction or complete WebUI root decision batch; not model execution |
-| `tools.enable_codeact`              | `true`  | Include native CodeAct runners and explicit `store`/`load`/`forget` state tools                        |
-| `subagents.include`                 | `[]`    | Ordered named built-ins: `code-reviewer`, `executor`, `explorer`                                       |
+| Field                                     | Default  | Meaning                                                                                                |
+| ----------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------ |
+| `tools.enable_ask_user_question`          | `true`   | Include native `ask_user_question` in newly resolved Runs                                              |
+| `tools.interaction_timeout_seconds`       | `120`    | Positive finite seconds per TUI interaction or complete WebUI root decision batch; not model execution |
+| `tools.enable_codeact`                    | `true`   | Include native CodeAct runners and explicit `store`/`load`/`forget` state tools                        |
+| `tools.execution.mode`                    | `inline` | Wait for completion; opt into `auto` to release eligible work after the foreground wait                |
+| `tools.execution.foreground_wait_seconds` | `5.0`    | Nonnegative finite wait in seconds for automatic handoff and standalone Shell waits                    |
+| `subagents.include`                       | `[]`     | Ordered named built-ins: `code-reviewer`, `executor`, `explorer`                                       |
 
-Setup writes all three `tools` fields explicitly into the selected root YAML (by default `~/.a13n-harness-ui/a13n-harness-ui.yaml`), filling omitted fields with these defaults and preserving existing values.
+Setup writes the tool switches and interaction timeout explicitly into the selected root YAML (by default `~/.a13n-harness-ui/a13n-harness-ui.yaml`), filling omitted fields with these defaults and preserving existing values.
 
 Global disabled tool switches take precedence over explicit Agent Capability selections. Tool allowlists still apply. Interaction expiry never chooses an answer or approves a command. See [TUI decision handling](everyday-use.md#approvals-and-questions) and [WebUI timeouts](webui.md#questions-and-approval-timeouts) for their separate waiting and recovery lifecycles.
 
 For all built-ins use `[code-reviewer, executor, explorer]`; for a subset use, for example, `[explorer]`. Advanced setup offers all or none; normal setup includes all three. Definitions remain package-owned; inclusion does not write `subagents/*.md`. [Built-in subagents](agents-and-subagents.md#built-in-subagents) explains inheritance and name conflicts.
+
+Harness UI uses immediate steering and inline tool execution by default. Select `auto` to let eligible tool calls continue in the background after the foreground wait. These global settings apply to root and child Runs:
+
+```yaml
+input:
+  steering_mode: immediate  # queued waits for the next safe boundary
+tools:
+  execution:
+    mode: inline           # auto enables timeout-based backgrounding
+    foreground_wait_seconds: 5.0
+```
+
+Each Run captures its tool execution policy. In `inline` mode, generic tool calls wait for their results; in `auto` mode, eligible calls return an execution receipt after the foreground wait. Immediate steering can release either wait early. The original call continues with its captured configuration, and CodeAct retains the whole program as one execution.
+
+Top-level Shell calls use the same runtime policy as other supported tools: `inline` waits for completion, while `auto` returns an execution receipt after the configured interval. A live Shell execution can be controlled across Runs in the same App through its `exec-*` identifier. Shell callbacks inside CodeAct return native results and Run-local process references, with only the outer runner eligible for handoff. See [shell execution](../a13n-harness/environments.md) for observation and process control.
+
+Fractional seconds are supported: `foreground_wait_seconds: 0.05` requests a 50 ms foreground wait in automatic mode. This bounds waiting, not command execution.
+
+`input.steering_mode` selects immediate handoff or queued delivery for subsequent user input. The App retains tool records and results in memory with bounded completed-history retention. See [WebUI](webui.md#tool-executions-and-immediate-steering) for status and cancellation.
 
 ## What wins, and when edits apply
 
