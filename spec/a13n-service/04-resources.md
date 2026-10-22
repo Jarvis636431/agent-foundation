@@ -89,6 +89,8 @@ agent_revisions   revision columns; config: AgentConfig
 
 Tool permissions live on each selection and compile into one Harness tool-permission table.
 
+Connection selections validate `connection_id`, `tools`, `permission`, and `permissions`. Unknown fields are ignored during parsing.
+
 `GET /toolsets` owns the default English `display_name` and short `description` for each built-in toolset and tool. Descriptions default to an empty string when omitted. Tool entries also identify their model-facing `model_name` and permission `execution_id`; presentation text is separate from these identities.
 
 ### Tool discovery
