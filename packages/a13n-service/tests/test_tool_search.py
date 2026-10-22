@@ -224,7 +224,7 @@ async def test_revision_and_host_proxy_mcp_keep_dispatch_and_live_connection_che
         selected = AgentConfig.model_validate(await revision_config(service, agent))
         root = resolved(agent["id"], agent["default_revision_id"], selected, connection_types={connection_id: "mcp"})
         actor, workspace = admin(service), scope(service)
-        run = RunRow(memory_mounts=[], mcp_headers={connection_id: {"x-trace": "proxy-search"}})
+        run = RunRow(options={}, memory_mounts=[], mcp_headers={connection_id: {"x-trace": "proxy-search"}})
         async with short_session(service.runtime.storage) as session:
             plan = await resolve_host(
                 session, run, actor, workspace, root, authority=execution_authority(actor, workspace)

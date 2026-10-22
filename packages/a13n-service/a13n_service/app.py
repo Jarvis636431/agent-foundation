@@ -196,7 +196,16 @@ async def open_runtime(
     modal_transports.start()
     stack.push_async_callback(modal_transports.close)
     tasks = Tasks()
-    stack.push_async_callback(tasks.close, timeout=config.server.shutdown_timeout)
+    # HTTP connection drain stays bounded by server.shutdown_timeout. Lifespan cleanup must also allow
+    # the worker's natural-completion and finalization windows before closing its shared clients.
+    shutdown_seconds = config.server.shutdown_timeout
+    if executes:
+        shutdown_seconds += (
+            config.worker.drain_seconds
+            + config.tool_executions.shutdown_grace_seconds
+            + config.tool_executions.finalization_seconds
+        )
+    stack.push_async_callback(tasks.close, timeout=shutdown_seconds)
     access = distribution.access()
     runtime = Runtime(
         storage=storage,
