@@ -8572,7 +8572,6 @@
           },
           "tool_name": {
             "type": "string",
-            "maxLength": 128,
             "minLength": 1,
             "title": "Tool Name"
           },
@@ -10781,7 +10780,6 @@
             "type": "string"
           },
           "tool_name": {
-            "maxLength": 128,
             "minLength": 1,
             "title": "Tool Name",
             "type": "string"
@@ -12002,7 +12000,6 @@
           },
           "tool_name": {
             "type": "string",
-            "maxLength": 128,
             "minLength": 1,
             "title": "Tool Name"
           },
@@ -17364,7 +17361,6 @@
           },
           "tool_name": {
             "type": "string",
-            "maxLength": 128,
             "minLength": 1,
             "title": "Tool Name"
           },
@@ -19902,8 +19898,7 @@
           "tool_name": {
             "anyOf": [
               {
-                "type": "string",
-                "maxLength": 128
+                "type": "string"
               },
               {
                 "type": "null"
