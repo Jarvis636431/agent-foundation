@@ -1,3 +1,4 @@
+import formStyles from "./forms.module.css";
 import { ChoiceField, FormField, Input, ReadOnlyField } from "a13n-ui";
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
@@ -65,32 +66,43 @@ export function ExecutionFields({
   value,
   onChange,
   readOnly = false,
+  compact = false,
 }: {
   value: ExecutionOverride;
   onChange?: (value: ExecutionOverride) => void;
   readOnly?: boolean;
+  compact?: boolean;
 }) {
   const { t } = useTranslation();
   const id = useId();
   const toolModes = [
     { value: "inherit", label: t("Inherit") },
-    { value: "inline", label: t("Inline — wait for tools") },
-    { value: "auto", label: t("Auto — continue after foreground wait") },
+    {
+      value: "inline",
+      label: t(compact ? "Wait for tools" : "Inline — wait for tools"),
+    },
+    {
+      value: "auto",
+      label: t(compact ? "Auto" : "Auto — continue after foreground wait"),
+    },
   ];
   const steeringModes = [
     { value: "inherit", label: t("Inherit") },
-    { value: "boundary", label: t("At the next boundary") },
+    {
+      value: "boundary",
+      label: t(compact ? "Between steps" : "At the next boundary"),
+    },
     { value: "immediate", label: t("Immediately") },
   ];
   return (
-    <div className="grid gap-4">
+    <div data-slot="execution-fields" className="grid gap-4">
       <EnvironmentVariables
         value={value.environment ?? {}}
         onChange={(environment) => onChange?.({ ...value, environment })}
         readOnly={readOnly}
       />
       {readOnly ? (
-        <ReadOnlyField label={t("Tool execution")}>
+        <ReadOnlyField label={t(compact ? "Tool calls" : "Tool execution")}>
           {
             toolModes.find(
               (item) => item.value === (value.tools?.mode ?? "inherit"),
@@ -99,8 +111,9 @@ export function ExecutionFields({
         </ReadOnlyField>
       ) : (
         <ChoiceField
+          popupClassName={compact ? formStyles.compactChoicePopup : undefined}
           id={`${id}-tools`}
-          label={t("Tool execution")}
+          label={t(compact ? "Tool calls" : "Tool execution")}
           value={value.tools?.mode ?? "inherit"}
           options={toolModes}
           onValueChange={(mode) =>
@@ -115,7 +128,7 @@ export function ExecutionFields({
         />
       )}
       {readOnly ? (
-        <ReadOnlyField label={t("Steering")}>
+        <ReadOnlyField label={t(compact ? "New messages" : "Steering")}>
           {
             steeringModes.find(
               (item) => item.value === (value.steering ?? "inherit"),
@@ -124,8 +137,9 @@ export function ExecutionFields({
         </ReadOnlyField>
       ) : (
         <ChoiceField
+          popupClassName={compact ? formStyles.compactChoicePopup : undefined}
           id={`${id}-steering`}
-          label={t("Steering")}
+          label={t(compact ? "New messages" : "Steering")}
           value={value.steering ?? "inherit"}
           options={steeringModes}
           onValueChange={(steering) =>
@@ -140,13 +154,23 @@ export function ExecutionFields({
         />
       )}
       {readOnly ? (
-        <ReadOnlyField label={t("Foreground wait (seconds)")}>
+        <ReadOnlyField
+          label={t(
+            compact ? "Wait time (seconds)" : "Foreground wait (seconds)",
+          )}
+        >
           {value.tools?.foreground_wait_seconds ?? t("Inherit")}
         </ReadOnlyField>
       ) : (
         <FormField
-          label={t("Foreground wait (seconds)")}
-          description={t("Used by Auto mode. Leave empty to inherit.")}
+          label={t(
+            compact ? "Wait time (seconds)" : "Foreground wait (seconds)",
+          )}
+          description={t(
+            compact
+              ? "How long Auto waits for tools. Empty uses the default."
+              : "Used by Auto mode. Leave empty to inherit.",
+          )}
         >
           <Input
             type="number"
