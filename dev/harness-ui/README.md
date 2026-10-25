@@ -123,3 +123,20 @@ Two private, read-only copied checkpoints were also replayed offline into dispos
 The referenced totals include every hot object. Sample A consists of a 5,337-byte manifest, 2,089,861-byte native state, and 5,331,276-byte display archive; sample B consists of 2,230 + 1,363,913 + 973,949 bytes. Full native state remains a snapshot rather than a message delta.
 
 WebUI regression tests check that 100 typing-and-acknowledgement cycles cause no history-subscriber renders, while local-input and submission transitions still render. Input navigation requests one page until Load more is activated. Complete turn caches survive checkpoint changes only when the server's full-entry content revision is identical; changed revisions are fetched again.
+
+## Live subscription memory benchmark
+
+Run each sample in a fresh Linux process with the checkout's locked dependencies:
+
+```bash
+uv run --locked python dev/harness-ui/benchmark_live_memory.py --watchers 8 --events 128 --trace
+uv run --locked python dev/harness-ui/benchmark_live_memory.py --watchers 8 --events 128
+```
+
+The benchmark queues nested child events, drains each subscriber, and verifies event order. Compare `--watchers 0`, `1`, and `8` to measure fan-out costs.
+
+- `queued_heap_bytes` and `closed_heap_bytes`: traced Python heap before draining and after closing the hub.
+- `publish_ms` and `drain_ms`: publication and delivery latency; measure with tracing disabled.
+- `max_rss_kib`: Linux process RSS high-water, including imports and allocator retention.
+
+Use separate traced and untraced runs, and repeat latency samples across fresh processes.
