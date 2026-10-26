@@ -42,6 +42,7 @@ from a13n_service.runs.attempts import Lease
 from a13n_service.runs.builtin_instructions import BuiltinInstructionsCapability
 from a13n_service.runs.calls import CallCheck
 from a13n_service.runs.environments.mounts import PRIMARY
+from a13n_service.runs.mcp_apps.capture import Captures
 from a13n_service.runs.memories.execution import (
     PlannedMemory,
     file_memory,
@@ -207,6 +208,7 @@ async def open_host(
     configuration: RunConfiguration,
     skill_cache: Cache,
     environments: Mapping[str, EnvironmentMount],
+    app_captures: Captures | None = None,
     request_context: RequestContext | None = None,
 ) -> AsyncGenerator[Host]:
     """Connections, web backends and record memory stores stay open until the context exits; every paid call
@@ -226,6 +228,7 @@ async def open_host(
                     registry=runtime.registry,
                     policy=runtime.endpoint_policy.for_run(configuration),
                     settings=runtime.settings.providers,
+                    capture=partial(app_captures.add, revision_id) if app_captures is not None else None,
                     request_context=request_context,
                 )
             )
