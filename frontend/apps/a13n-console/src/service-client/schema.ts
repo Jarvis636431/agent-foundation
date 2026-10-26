@@ -10,9 +10,9 @@ export interface paths {
     put?: never;
     /**
      * Prepare Composer
-     * @description The workspace's Agent Composer, created or brought up to date with the deployment's definition.
+     * @description The workspace's Agent Composer, initialized or offered an updated official revision without changing its default.
      *
-     *     Refused with `model_required` while the workspace has no model the caller can use.
+     *     Initial preparation requires a usable model; later preparation preserves the selected model and revision.
      */
     post: operations["prepare_composer"];
     delete?: never;
@@ -4729,6 +4729,11 @@ export interface components {
     AgentRevision: {
       /** Agent Id */
       agent_id: string;
+      /**
+       * Builtin Instructions
+       * @description Current deployment guidance for this builtin Agent, not a revision or Run snapshot.
+       */
+      builtin_instructions?: string | null;
       config: components["schemas"]["AgentConfig-Output"];
       /**
        * Created At
@@ -4840,6 +4845,11 @@ export interface components {
     AnalysisCreate: {
       /** Agent Id */
       agent_id?: string | null;
+      /**
+       * Instructions
+       * @default
+       */
+      instructions?: string;
       /**
        * Max Traces
        * @default 10

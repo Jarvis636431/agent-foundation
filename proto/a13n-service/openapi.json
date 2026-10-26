@@ -1390,6 +1390,19 @@
             "title": "Agent Id",
             "type": "string"
           },
+          "builtin_instructions": {
+            "anyOf": [
+              {
+                "maxLength": 262144,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Current deployment guidance for this builtin Agent, not a revision or Run snapshot.",
+            "title": "Builtin Instructions"
+          },
           "config": {
             "$ref": "#/components/schemas/AgentConfig-Output"
           },
@@ -1740,6 +1753,12 @@
               }
             ],
             "title": "Agent Id"
+          },
+          "instructions": {
+            "default": "",
+            "maxLength": 8192,
+            "title": "Instructions",
+            "type": "string"
           },
           "max_traces": {
             "default": 10,
@@ -23455,7 +23474,7 @@
   "paths": {
     "/api/v1/agent-composer": {
       "post": {
-        "description": "The workspace's Agent Composer, created or brought up to date with the deployment's definition.\n\nRefused with `model_required` while the workspace has no model the caller can use.",
+        "description": "The workspace's Agent Composer, initialized or offered an updated official revision without changing its default.\n\nInitial preparation requires a usable model; later preparation preserves the selected model and revision.",
         "operationId": "prepare_composer",
         "parameters": [
           {

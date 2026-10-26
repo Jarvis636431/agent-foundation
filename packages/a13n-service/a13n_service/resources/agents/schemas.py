@@ -426,6 +426,10 @@ class AgentRevision(BaseModel):
     agent_id: str
     number: int
     config: AgentConfig
+    builtin_instructions: Instructions | None = Field(
+        default=None,
+        description="Current deployment guidance for this builtin Agent, not a revision or Run snapshot.",
+    )
     digest: str
     note: str | None
     created_by_id: str

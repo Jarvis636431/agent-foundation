@@ -20,11 +20,14 @@ from a13n_harness.environment.advanced import EnvironmentRuntime, create_environ
 from a13n_harness.tools import ToolIdentity
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.models import Model
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from a13n_service.execution_policy import ExecutionPolicy
 from a13n_service.infra.errors import ServiceError
+from a13n_service.resources.agents import instructions
 from a13n_service.resources.agents.schemas import SharedSkillSync
+from a13n_service.resources.agents.tables import AgentRevisionRow, AgentRow
 from a13n_service.resources.agents.toolsets import (
     enabled_tool,
     memory_file_tools,
@@ -36,6 +39,7 @@ from a13n_service.resources.connections.runtime import SelectedConnection, open_
 from a13n_service.runs.agent import ResolvedAgent, media_understanding
 from a13n_service.runs.assets import AssetsCapability
 from a13n_service.runs.attempts import Lease
+from a13n_service.runs.builtin_instructions import BuiltinInstructionsCapability
 from a13n_service.runs.calls import CallCheck
 from a13n_service.runs.environments.mounts import PRIMARY
 from a13n_service.runs.memories.execution import (
@@ -64,6 +68,7 @@ class _Parts:
     skills: tuple[PinnedSkill, ...]
     platform: Mapping[str, ToolIdentity]
     builtin_skill: bool
+    builtin_instructions: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,6 +91,22 @@ async def resolve_host(
     authority: ExecutionAuthority,
 ) -> HostPlan:
     parts: dict[str, _Parts] = {}
+    # Resolve server-owned preset identities for the whole inline graph. Custom copies receive no guidance.
+    builtin = dict(
+        (
+            await session.execute(
+                select(AgentRevisionRow.id, AgentRow.preset_kind)
+                .join(AgentRow, AgentRow.id == AgentRevisionRow.agent_id)
+                .where(
+                    AgentRevisionRow.workspace_id == scope.workspace_id,
+                    AgentRevisionRow.id.in_({node.revision_id for node in agent.agents()}),
+                    AgentRow.source == "builtin",
+                )
+            )
+        )
+        .tuples()
+        .all()
+    )
     for node in agent.agents():
         if node.revision_id in parts:
             continue
@@ -103,6 +124,7 @@ async def resolve_host(
             skills=await resolve_skills(session, run, config.skills, sync=config.skill_sync),
             platform=platform_tools(config.toolsets),
             builtin_skill="platform-operations" in config.builtin_skills,
+            builtin_instructions=instructions.for_preset(builtin.get(node.revision_id)),
         )
     return HostPlan(
         parts,
@@ -137,6 +159,8 @@ class Host:
             # Only conversation roots retain calls; inline children and memory organizers stay inline.
             features.append(ToolExecutionCapability(self.plan.execution.tools))
         parts = self.plan.parts[agent.revision_id]
+        if parts.builtin_instructions is not None:
+            features.append(BuiltinInstructionsCapability(parts.builtin_instructions))
         skills = parts.skills
         sync = agent.config.skill_sync
         if parts.builtin_skill or skills or (isinstance(sync, SharedSkillSync) and sync.cleanup):
