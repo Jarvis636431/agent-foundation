@@ -118,14 +118,50 @@ async def test_missing_components_only_produce_manual_guidance(host, monkeypatch
     module.probe.assert_not_awaited()
 
 
-@pytest.mark.parametrize("platform", ["macos", "windows", "other"])
+@pytest.mark.parametrize("sharing", [False, True])
+@pytest.mark.parametrize("password", ["", "testpass"])
+async def test_macos_requires_native_sharing_and_host_only_password(host, monkeypatch, sharing, password):
+    monkeypatch.setattr(module, "host_platform", lambda: "macos")
+    monkeypatch.setattr(module, "screen_sharing_available", AsyncMock(return_value=sharing))
+    monkeypatch.setenv(module.PASSWORD_ENV, password)
+    setup = await module.inspect_browser(host)
+    assert setup.supported and setup.ready == (sharing and bool(password))
+    assert setup.vnc is None and not setup.steps
+    assert [item.name for item in setup.requirements] == ["Browser", "Screen Sharing", "VNC password"]
+    assert not password or password not in setup.model_dump_json()
+    module.probe.assert_awaited_once_with(host.executable, "--version")
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+async def test_macos_selects_browser_without_discovering_linux_components(host, monkeypatch, explicit):
+    monkeypatch.setattr(module, "host_platform", lambda: "macos")
+    monkeypatch.setattr(module, "screen_sharing_available", AsyncMock(return_value=True))
+    monkeypatch.setenv(module.PASSWORD_ENV, "testpass")
+    browser = BrowserExecutable(name="Chrome", path="/Applications/Chrome", source="system")
+    discovered = Mock(return_value=[browser])
+    monkeypatch.setattr(module, "system_browsers", discovered)
+    monkeypatch.setattr(module, "linux_distribution", Mock(side_effect=AssertionError("Linux only")))
+    monkeypatch.setattr(module, "find_program", Mock(side_effect=AssertionError("Linux only")))
+    configuration = BrowserConfiguration(executable=browser.path if explicit else None)
+    setup = await module.inspect_browser(configuration)
+    assert setup.ready and setup.browser and setup.browser.path == browser.path
+    assert setup.browser.source == ("custom" if explicit else "system")
+    assert setup.vnc is None
+    assert configuration.vnc_executable is None
+    if explicit:
+        discovered.assert_not_called()
+    else:
+        discovered.assert_called_once_with("macos")
+
+
+@pytest.mark.parametrize("platform", ["windows", "other"])
 async def test_other_platforms_report_platform_limit_without_probing_or_missing_components(host, monkeypatch, platform):
     monkeypatch.setattr(module, "host_platform", lambda: platform)
     setup = await module.inspect_browser(host)
     assert not setup.supported and not setup.ready
     assert setup.browser is None and setup.vnc is None
     assert not setup.steps and not setup.requirements
-    assert "Linux Host" in setup.message
+    assert "Linux or macOS Host" in setup.message
     module.probe.assert_not_awaited()
 
 

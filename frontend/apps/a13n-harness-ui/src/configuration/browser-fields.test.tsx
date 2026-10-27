@@ -289,6 +289,49 @@ it("checks unsaved VNC selections, switches requirements and preserves optional 
   ).toBe("/custom/invalid");
 });
 
+it("prepares native Screen Sharing on macOS without a Linux VNC selector", async () => {
+  post.mockImplementation(async (url: string) => ({
+    data:
+      url === "/api/browser/scan"
+        ? { ...discovered, platform: "macos", vncs: [] }
+        : {
+            platform: "macos",
+            supported: true,
+            ready: false,
+            requirements: [
+              {
+                name: "Browser",
+                required: true,
+                installed: true,
+                detail: "/opt/chrome",
+              },
+              {
+                name: "Screen Sharing",
+                required: true,
+                installed: false,
+                detail: "Enable Screen Sharing in System Settings.",
+              },
+              {
+                name: "VNC password",
+                required: true,
+                installed: false,
+                detail: "Set A13N_HARNESS_UI_MACOS_VNC_PASSWORD on the Host.",
+              },
+            ],
+            steps: [],
+          },
+  }));
+  show();
+  await screen.findByText("Screen Sharing");
+  expect(
+    screen.getByRole("combobox", { name: "Browser executable" }),
+  ).toBeTruthy();
+  expect(screen.queryByRole("combobox", { name: "VNC executable" })).toBeNull();
+  expect(
+    screen.getByText(/macOS shares the entire logged-in desktop/),
+  ).toBeTruthy();
+  expect(screen.queryByLabelText(/password/i)).toBeNull();
+});
 it("returns an explicit executable override to automatic selection", async () => {
   show('schema_version: "1"\nbrowser: {executable: /saved/chrome}\n');
   const user = userEvent.setup();
@@ -317,15 +360,15 @@ it("shows a platform explanation instead of unusable settings on unsupported Hos
     data: url.endsWith("/scan")
       ? discovered
       : {
-          platform: "macos",
+          platform: "windows",
           supported: false,
           ready: false,
           requirements: [],
-          message: "The Host browser currently requires Linux.",
+          message: "The Host browser requires a Linux or macOS Host.",
         },
   }));
   show();
-  await screen.findByText("The Host browser currently requires Linux.");
+  await screen.findByText("The Host browser requires a Linux or macOS Host.");
   expect(
     screen.queryByRole("combobox", { name: "Browser executable" }),
   ).toBeNull();

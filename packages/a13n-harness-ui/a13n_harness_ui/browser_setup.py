@@ -12,6 +12,7 @@ from pathlib import Path
 from platform import freedesktop_os_release
 from typing import Literal
 
+from a13n_harness_ui.browser_macos import PASSWORD_ENV, password_ready, screen_sharing_available
 from a13n_harness_ui.configuration.models import BrowserConfiguration
 from a13n_harness_ui.surfaces import SurfaceModel
 
@@ -156,6 +157,7 @@ async def inspect_vnc(path: str, source: Literal["system", "custom"]) -> VncExec
 
 
 class BrowserScan(SurfaceModel):
+    platform: BrowserPlatform = "linux"
     browsers: tuple[BrowserExecutable, ...] = ()
     vncs: tuple[VncExecutable, ...] = ()
 
@@ -175,7 +177,7 @@ async def scan_browsers() -> BrowserScan:
             if path and path not in vncs:
                 if candidate := await inspect_vnc(path, "system"):
                     vncs[path] = candidate
-    return BrowserScan(browsers=tuple(browsers), vncs=tuple(vncs.values()))
+    return BrowserScan(platform=platform, browsers=tuple(browsers), vncs=tuple(vncs.values()))
 
 
 async def probe(path: str, argument: str) -> str:
@@ -210,17 +212,19 @@ async def inspect_browser(
 ) -> BrowserSetup:
     configuration = configuration or BrowserConfiguration()
     platform = host_platform()
-    supported = platform == "linux"
+    supported = platform in {"linux", "macos"}
     if not supported:
         return BrowserSetup(
             platform=platform,
             supported=False,
             ready=False,
-            message="The Host browser currently requires Linux. Run Harness UI on a Linux Host to use it.",
+            message="The Host browser requires a Linux or macOS Host.",
         )
-    distribution = await asyncio.to_thread(linux_distribution)
+    distribution = await asyncio.to_thread(linux_distribution) if platform == "linux" else {}
     detected = (
-        await scan_browsers() if not configuration.executable or not configuration.vnc_executable else BrowserScan()
+        await scan_browsers()
+        if not configuration.executable or (platform == "linux" and not configuration.vnc_executable)
+        else BrowserScan(platform=platform)
     )
     browser = None
     browser_detail = "No compatible browser found. Install Chrome, Chromium or Edge on this Host, then try again."
@@ -239,6 +243,39 @@ async def inspect_browser(
     elif not configuration.executable and detected.browsers:
         browser = detected.browsers[0]
         browser_detail = f"{browser.path} (automatic)"
+
+    if platform == "macos":
+        requirements = (
+            BrowserRequirement(
+                name="Browser",
+                installed=browser is not None,
+                detail=browser_detail,
+                purpose="Chrome, Chromium or Edge stores the shared browser profile.",
+            ),
+            BrowserRequirement(
+                name="Screen Sharing",
+                installed=await screen_sharing_available(),
+                detail="Enable System Settings → General → Sharing → Screen Sharing, then enable VNC viewers in its settings.",
+                purpose="Shares the entire logged-in macOS desktop, including other applications and windows.",
+            ),
+            BrowserRequirement(
+                name="VNC password",
+                installed=password_ready(),
+                detail=f"Set {PASSWORD_ENV} to the Screen Sharing VNC password (1-8 Latin-1 characters) before starting Harness UI.",
+                purpose="The Host authenticates locally; this password is never sent to the WebUI.",
+            ),
+        )
+        ready = all(item.installed for item in requirements)
+        return BrowserSetup(
+            platform=platform,
+            supported=True,
+            ready=ready,
+            browser=browser,
+            requirements=requirements,
+            message="macOS shares the entire desktop. Keep this account logged in; Harness UI does not change Screen Sharing settings."
+            if ready
+            else "Prepare the browser, Screen Sharing and its VNC password on this Mac, then recheck.",
+        )
 
     resizing = await asyncio.to_thread(find_program, "xrandr") if supported else None
     manager = await asyncio.to_thread(find_program, "openbox", "fluxbox", "icewm", "twm") if supported else None
