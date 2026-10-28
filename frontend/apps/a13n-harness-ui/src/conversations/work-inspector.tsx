@@ -1,30 +1,29 @@
+import { HelpTip } from "../shell/help-tip";
 import { useEffect, useState } from "react";
 import {
   Button,
-  Popover,
-  PopoverTrigger,
-  PopoverPopup,
-  PopoverTitle,
-  PopoverDescription,
-  PopoverClose,
+  Dialog,
+  DialogTrigger,
+  DialogPopup,
+  DialogTitle,
+  DialogClose,
   Skeleton,
 } from "a13n-ui";
 import {
-  CheckCircle,
-  Circle,
-  CircleHalf,
   ListChecks,
   Notebook,
   UsersThree,
   Terminal,
   Wrench,
   X,
+  CaretDown,
 } from "@phosphor-icons/react";
 import { type Schema } from "../transport/client";
 import { useGuestAccess } from "../transport/context";
 import { useThreadWork, workCaption } from "./work";
+import { useDebug } from "../shell/debug";
 import { ErrorNotice } from "../shell/ui";
-import { MessageText } from "./message-text";
+import { TaskIcon, TaskList, NoteList } from "./work-lists";
 import { Children } from "./details";
 import type { FocusDisplay } from "./stream";
 import { Processes } from "./processes";
@@ -32,89 +31,6 @@ import { ToolExecutions } from "./tool-executions";
 import { GoalStatus } from "./goal-status";
 import styles from "./work-inspector.module.css";
 
-type Task = Schema<"TaskView">;
-const rank = { in_progress: 0, pending: 1, completed: 2 };
-export function orderedTasks(tasks: Task[]) {
-  return tasks.slice().sort((a, b) => rank[a.status] - rank[b.status]);
-}
-function TaskIcon({ status }: { status: Task["status"] }) {
-  const Icon =
-    status === "completed"
-      ? CheckCircle
-      : status === "in_progress"
-        ? CircleHalf
-        : Circle;
-  return (
-    <Icon aria-label={status.replaceAll("_", " ")} className={styles[status]} />
-  );
-}
-export function TaskList({ page }: { page?: Schema<"TaskPage"> }) {
-  if (!page) return null;
-  if (page.available === false)
-    return <p>Task projection is unavailable for this provider.</p>;
-  return (
-    <>
-      <ul className={styles.tasks}>
-        {orderedTasks(page.tasks ?? []).map((task) => (
-          <li key={task.task_id}>
-            <TaskIcon status={task.status} />
-            <details>
-              <summary>
-                {task.status === "in_progress"
-                  ? task.active_form || task.subject
-                  : task.subject}
-              </summary>
-              <p>{task.subject}</p>
-              <dl>
-                <div>
-                  <dt>Task</dt>
-                  <dd>{task.task_id}</dd>
-                </div>
-                <div>
-                  <dt>Status</dt>
-                  <dd>{task.status.replaceAll("_", " ")}</dd>
-                </div>
-                <div>
-                  <dt>Owner</dt>
-                  <dd>{task.owner || "Unassigned"}</dd>
-                </div>
-                {!!task.blocked_by?.length && (
-                  <div>
-                    <dt>Blocked by</dt>
-                    <dd>{task.blocked_by.join(", ")}</dd>
-                  </div>
-                )}
-                {!!task.blocks?.length && (
-                  <div>
-                    <dt>Blocks</dt>
-                    <dd>{task.blocks.join(", ")}</dd>
-                  </div>
-                )}
-              </dl>
-            </details>
-          </li>
-        ))}
-      </ul>
-      {!page.tasks?.length && <p>No tasks yet.</p>}
-      {!!page.omitted && <p>{page.omitted} tasks outside this bounded view.</p>}
-    </>
-  );
-}
-export function NoteList({ page }: { page?: Schema<"NotePage"> | null }) {
-  if (!page) return null;
-  return (
-    <div className={styles.notes}>
-      {page.notes?.map((note) => (
-        <details key={note.key}>
-          <summary>{note.key}</summary>
-          <MessageText text={note.value} />
-        </details>
-      ))}
-      {!page.notes?.length && <p>No notes yet.</p>}
-      {!!page.omitted && <p>{page.omitted} notes omitted by the server.</p>}
-    </div>
-  );
-}
 function Loading({ label }: { label: string }) {
   return (
     <div role="status" aria-label={label} className={styles.loading}>
@@ -141,6 +57,7 @@ export function WorkInspector({
   onUseGoal?: () => void;
 }) {
   const guest = useGuestAccess();
+  const debug = useDebug();
   const [tab, setTab] = useState<
     "goal" | "tasks" | "notes" | "children" | "processes" | "tools" | null
   >(null);
@@ -182,6 +99,7 @@ export function WorkInspector({
   const tabs = (
     ["tasks", "notes", "children", "processes", "tools"] as const
   ).filter((key) => !guest || (key !== "processes" && key !== "tools"));
+  const key = tab && tab !== "goal" ? tab : "tasks";
   return (
     <div className={styles.strip} aria-label="Work inspection">
       {goal && (
@@ -193,88 +111,83 @@ export function WorkInspector({
           onUseObjective={onUseGoal}
         />
       )}
-      {tabs.map((key) => {
-        const Icon =
-          key === "tasks"
-            ? ListChecks
-            : key === "notes"
-              ? Notebook
-              : key === "children"
-                ? UsersThree
-                : key === "tools"
-                  ? Wrench
-                  : Terminal;
-        return (
-          <Popover
-            key={key}
-            open={tab === key}
-            onOpenChange={(open) => setTab(open ? key : null)}
-          >
-            <PopoverTrigger
-              render={<Button variant="ghost" size="sm" />}
-              aria-label={`Inspect ${labels[key].toLowerCase()}`}
-              title={
-                key === "processes"
-                  ? undefined
-                  : workCaption(
-                      summary,
-                      work.stale || !connected,
-                      work.summary.isFetching,
-                    )
-              }
+      <Dialog
+        open={tab !== null && tab !== "goal"}
+        onOpenChange={(open) => setTab(open ? "tasks" : null)}
+      >
+        <DialogTrigger
+          render={<Button variant="ghost" size="sm" />}
+          aria-label="Chat activity"
+        >
+          <ListChecks />
+          Activity
+          {!!total && (
+            <span className={styles.count}>
+              {complete}/{total}
+            </span>
+          )}
+          <CaretDown />
+        </DialogTrigger>
+        <DialogPopup showCloseButton={false} className={styles.popup}>
+          <div className={styles.heading}>
+            <DialogTitle>Chat activity</DialogTitle>
+            <HelpTip label="About activity">
+              {key === "processes" &&
+                "Recent processes from this chat and its subagents. Other server processes are not shown. "}
+              {workCaption(
+                key === "notes" ? work.notes.data : work.tasks.data,
+                work.stale || !connected,
+                work.summary.isFetching,
+                debug.enabled,
+              )}
+            </HelpTip>
+            <DialogClose
+              render={<Button variant="ghost" size="icon-sm" />}
+              aria-label="Close activity"
             >
-              <Icon />
-              {labels[key]}
-              {key === "children" && !!childTotal && (
-                <span className={styles.count}>{childTotal}</span>
-              )}
-              {key === "notes" && !!summary?.notes.total && (
-                <span className={styles.count}>{summary.notes.total}</span>
-              )}
-              {key === "processes" && running > 0 && (
-                <span className={styles.count}>
-                  {running}
-                  {incomplete || display.processes.omitted ? "+" : ""}
-                </span>
-              )}
-              {key === "tasks" && !!total && (
-                <span className={styles.count}>
-                  {complete}/{total}
-                </span>
-              )}
-            </PopoverTrigger>
-            <PopoverPopup
-              side="top"
-              align="start"
-              sideOffset={10}
-              className={styles.popup}
-            >
-              <div className={styles.heading}>
-                <PopoverTitle>{labels[key]}</PopoverTitle>
-                <PopoverClose
-                  render={<Button variant="ghost" size="icon-sm" />}
-                  aria-label={`Close ${labels[key].toLowerCase()}`}
-                >
-                  <X />
-                </PopoverClose>
-              </div>
-              {key === "processes" && (
-                <PopoverDescription className={styles.caption}>
-                  Last observed processes from this conversation and its
-                  subagents, not all server processes.
-                </PopoverDescription>
-              )}
-              {(key === "tasks" || key === "notes") && (
-                <p className={styles.caption}>
-                  {workCaption(
-                    key === "tasks" ? work.tasks.data : work.notes.data,
-                    work.stale || !connected,
-                    work.summary.isFetching ||
-                      (key === "tasks"
-                        ? work.tasks.isFetching
-                        : work.notes.isFetching),
-                  )}
-                </p>
+              <X />
+            </DialogClose>
+          </div>
+          <div className={styles.activityLayout}>
+            <div className={styles.tabs} aria-label="Activity views">
+              {tabs.map((item) => {
+                const Icon =
+                  item === "tasks"
+                    ? ListChecks
+                    : item === "notes"
+                      ? Notebook
+                      : item === "children"
+                        ? UsersThree
+                        : item === "tools"
+                          ? Wrench
+                          : Terminal;
+                const count =
+                  item === "children"
+                    ? childTotal
+                    : item === "notes"
+                      ? summary?.notes.total
+                      : item === "processes"
+                        ? running
+                        : undefined;
+                return (
+                  <Button
+                    key={item}
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`Inspect ${labels[item].toLowerCase()}`}
+                    aria-pressed={key === item}
+                    onClick={() => setTab(item)}
+                  >
+                    <Icon />
+                    {labels[item]}
+                    {!!count && <span className={styles.count}>{count}</span>}
+                  </Button>
+                );
+              })}
+            </div>
+            <div className={styles.inspectorBody}>
+              {key !== "tools" && (
+                <h3 className={styles.panelTitle}>{labels[key]}</h3>
               )}
               {key === "tasks" && (
                 <>
@@ -314,12 +227,14 @@ export function WorkInspector({
               )}
               {key === "children" && tab === key && (
                 <>
-                  {summary && (
-                    <p className={styles.caption}>
-                      {summary.children.active ?? 0} active ·{" "}
-                      {summary.children.unavailable ?? 0} unavailable
-                    </p>
-                  )}
+                  {summary &&
+                    ((summary.children.active ?? 0) > 0 ||
+                      (summary.children.unavailable ?? 0) > 0) && (
+                      <p className={styles.caption}>
+                        {summary.children.active ?? 0} active ·{" "}
+                        {summary.children.unavailable ?? 0} unavailable
+                      </p>
+                    )}
                   <Children
                     threadId={threadId}
                     reconcile={reconcile}
@@ -327,10 +242,10 @@ export function WorkInspector({
                   />
                 </>
               )}
-            </PopoverPopup>
-          </Popover>
-        );
-      })}
+            </div>
+          </div>
+        </DialogPopup>
+      </Dialog>
       {active && (
         <span
           className={styles.active}

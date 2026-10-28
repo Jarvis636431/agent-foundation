@@ -118,11 +118,11 @@ flowchart TB
 
 ## Agent 与 Model 设置
 
-点击输入框底部 Agent 和 Model 名称旁的图标，选择 Agent、Model、Reasoning mode、Thinking 等级或速度设置。继承控件恢复对应默认值；速度设置使用 **Use model setting**。手机上这些控件以底部弹层打开；**Goal**、**Coordinator** 和 **Environments** 保留在输入框顶部。
+点击输入框底部当前 Model，选择 Agent、Model、Reasoning mode、Thinking 等级或 Speed。每项在同一弹层内展开，Default 恢复继承设置。桌面和手机均通过 Chat options 使用 Goal、Coordinate agents、Environment 和 Clear context。
 
 需要持久 Model 选择时，打开对话配置并设置 **Default model**。**Follow Agent model** 清除它。跟随该保存值时输入框显示 **Thread default**；改选输入框 Model 则改变 Run 草稿。配置检查会区分下次 Run 选择与当前或已保存工作的捕获选择。
 
-附件旁的 **Clear context** 让下一条消息不带先前模型消息、笔记、任务或保存的 Agent 工作状态开始，同时丢弃待处理问题和审批。聊天历史、文件、设置和未发送输入保留。
+**Chat options → Clear context** 让下一条消息不带先前模型消息、笔记、任务或保存的 Agent 工作状态开始，同时丢弃待处理问题和审批。聊天历史、文件、设置和未发送输入保留。
 
 ### 下次 Run 的 Thinking 设置
 
@@ -367,12 +367,12 @@ PNG 尺寸取决于原图像素裁剪，不受预览缩放或屏幕密度影响�
 
 ## 分享 Thread 或 Project
 
-1. 点击 Thread 麦克风旁的 **Share**，或 Project 菜单的 **Share Project**。
+1. 点击 Thread 麦克风旁的 **Share**，或 Project 菜单的 **Share**。
 2. 选择 **Thread** 或 **Project**。Project 访问包含当前/未来 Thread；Thread 移出后访问结束。
-3. **Can view** 可阅读历史、附件和实时输出；**Can prompt** 可共享编辑、上传、发送和 steering。可发送访客能按 Project 默认值创建 Thread。
+3. **View only** 可阅读历史、附件和实时输出；**Send messages** 可共享编辑、上传、发送和 steering。可发送访客能按 Project 默认值创建 Thread。
 4. 选择一小时、一天或七天，再点击 **Create link**。
-5. 关闭前 **Copy link**，秘密只显示一次。用 **Preview as guest** 检查访客视图。
-6. 在 **Active links** 修改权限并 **Save**，或 **Revoke** 撤销。
+5. 关闭前 **Copy link**，秘密只显示一次。用 **Open shared view** 检查访客视图。
+6. 在 **Manage links** 修改权限并 **Save**，或 **Revoke** 撤销。
 
 只给信任的人可发送链接。其提示使用 Agent 现有工具和 Environment 权限，包括跨对话工具。链接范围限制浏览器/API 访问，不隔离 Agent 执行。
 
