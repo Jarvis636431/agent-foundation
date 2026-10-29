@@ -1268,3 +1268,12 @@ async def test_plugin_catalog_is_authorized_and_exposes_only_public_metadata(ser
     assert denied.status_code in (403, 404)
     service.client.cookies.clear()
     assert (await service.client.get(f"{service.api}/plugins")).status_code == 401
+
+
+def test_context_recovery_is_default_host_execution_policy() -> None:
+    from a13n_harness import ContextRecoveryPolicy
+
+    agent = resolved(new_object_id("ap"), new_object_id("apr"), config())
+    built = build(agent, capabilities=lambda _: [], plugins=PLUGINS, instrumentation=None)
+    assert built.definition.context_recovery == ContextRecoveryPolicy()
+    assert "context_recovery" not in AgentConfig.model_fields

@@ -208,6 +208,8 @@ Root `background_compaction` contains `enabled` (default `true`) and `blocking_t
 
 Setting `background_compaction.enabled` to `false` disables new background generation for later captured Runs while preserving delivery of already retained results. The blocking threshold uses Harness's [background policy](../a13n-harness/09-context-and-memory.md#background-execution-and-result-application); the common compaction trigger and Model context characteristics remain independent. Harness itself retains its synchronous default. [Local Storage and Recovery](03-local-storage-and-recovery.md#retained-background-compaction) owns result persistence, checkpoint acknowledgement, interruption, and shutdown.
 
+Harness UI inherits the default [Harness context recovery policy](../a13n-harness/09-context-and-memory.md#context-recovery) for roots and children. Recovery is trusted runtime behavior independent of authored compaction configuration and background mode.
+
 ## Goal Iteration Policy
 
 Root YAML `max_goal_iterations` is an integer with default `10`. It limits additional self-check continuations after the initial response for [Goal submissions](05-runtime-subagents-and-surfaces.md#goal-execution). Values at or below zero disable automatic Goal follow-ups, not ordinary execution. Admission captures the effective value in Goal state; later configuration edits do not change an active, deferred, or gracefully restarted Goal's budget. This setting does not alter native request/tool/usage limits and is not a sticky Thread selection.

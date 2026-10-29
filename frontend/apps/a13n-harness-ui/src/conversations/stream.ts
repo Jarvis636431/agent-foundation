@@ -791,6 +791,19 @@ export class FocusDisplay {
       return;
     }
     if (
+      name === "a13n.harness.recovery" &&
+      payload.type === "context_recovery"
+    ) {
+      const key = `${scope}:context-recovery`;
+      setBlock(key, {
+        id: key,
+        kind: "activity",
+        text: `${string(payload.warning)} Outcome: ${string(payload.outcome)}.`,
+        metadata: { "a13n.recovery": "context_recovery" },
+      });
+      return;
+    }
+    if (
       !subagentRunId &&
       name === "a13n.harness.recovery" &&
       payload.type === "model_retry_scheduled"

@@ -28,6 +28,8 @@ async def test_background_compaction_configuration_is_captured(tmp_path: Path, e
     from .test_composition import _catalog, _selection, _UnusedOperator, _write_source
 
     root = _write_source(tmp_path)
+    agent = tmp_path / "agents/assistant.yaml"
+    agent.write_text(agent.read_text().replace("capabilities:\n", "capabilities:\n  - capability: compaction\n"))
     if enabled is not None:
         root.write_text(
             root.read_text()
@@ -50,6 +52,8 @@ async def test_background_compaction_configuration_is_captured(tmp_path: Path, e
         assert (reconstructed.compaction is not None) is (enabled is not False)
         leaves = []
         reconstructed.executable._agent.root_capability.apply(leaves.append)
+        compactions = [item for item in leaves if isinstance(item, CompactionCapability)]
+        assert compactions
         if enabled is not False:
             assert all(
                 item.background_policy == composition.background_compaction

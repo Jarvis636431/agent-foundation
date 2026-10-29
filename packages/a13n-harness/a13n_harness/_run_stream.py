@@ -18,7 +18,14 @@ from opentelemetry.trace import StatusCode
 from pydantic import JsonValue, TypeAdapter, ValidationError
 from pydantic_ai.agent import AgentRunEvents
 from pydantic_ai.agent.spec import AgentSpec
-from pydantic_ai.exceptions import AgentRunError, ModelHTTPError, RunCancelled, UsageLimitExceeded, UserError
+from pydantic_ai.exceptions import (
+    AgentRunError,
+    ModelContextWindowExceededError,
+    ModelHTTPError,
+    RunCancelled,
+    UsageLimitExceeded,
+    UserError,
+)
 from pydantic_ai.messages import (
     AgentStreamEvent,
     EnqueuedMessagesEvent,
@@ -35,6 +42,7 @@ from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.usage import RunUsage, UsageLimits
 
 from a13n_harness._capability_contract import _validate_capability_source
+from a13n_harness._context_recovery import CONTEXT_RECOVERY_STATE_ID, ContextRecoveryState, record_outcome
 from a13n_harness._output_contract import _business_output_contains_deferred_value
 from a13n_harness.capabilities.context import HANDOFF_CAPABILITY_ID
 from a13n_harness.capabilities.producer import ProducerCaptureCapability
@@ -632,6 +640,8 @@ class HarnessRunStream[OutputT](AsyncIterator[HarnessStreamEvent[OutputT]]):
             working_state_observer=bindings.working_state_observer,
             client_toolsets=bindings.client_toolsets,
             tool_result_directory=bindings.tool_result_directory,
+            context_recovery_scope_id=bindings.context_recovery_scope_id,
+            retained_history_directory=bindings.retained_history_directory,
             _capability_provenance=_CapabilityProvenance(
                 definition_ids=self._executable._definition_reserved_capability_ids,
                 run_ids=self._run_reserved_capability_ids,
@@ -1294,6 +1304,14 @@ class HarnessRunStream[OutputT](AsyncIterator[HarnessStreamEvent[OutputT]]):
         max_attempts = policy.max_attempts if policy.enabled else 1
         attempt_index = 0
         recovery = exchange.context._model_recovery
+        context_recovery = await exchange.context.state.read(
+            CONTEXT_RECOVERY_STATE_ID, ContextRecoveryState, version="1"
+        )
+        recovery.context_recovery_pending = bool(
+            context_recovery is not None
+            and context_recovery.scope_id == (exchange.context.context_recovery_scope_id or self.run_id)
+            and context_recovery.pending
+        )
         tool_recovery = exchange.context._tool_recovery
         current_history = tool_recovery.messages if tool_recovery is not None else self._initial_history
         deferred_results = (
@@ -1448,6 +1466,33 @@ class HarnessRunStream[OutputT](AsyncIterator[HarnessStreamEvent[OutputT]]):
                                 )
                             )
                             return
+
+                        if recovery.context_replacement is not None:
+                            replacement = recovery.context_replacement
+                            recovery.context_replacement = None
+                            current_history = replacement
+                            self._latest_messages = replacement
+                            self._new_message_index = 0
+                            current_input = normalize_input(None)
+                            attempt_index += 1
+                            continue
+
+                        if isinstance(error, ModelContextWindowExceededError):
+                            marker = await exchange.context.state.read(
+                                CONTEXT_RECOVERY_STATE_ID, ContextRecoveryState, version="1"
+                            )
+                            if marker is not None and marker.scope_id == (
+                                exchange.context.context_recovery_scope_id or self.run_id
+                            ):
+                                await record_outcome(exchange.context, "overflow")
+                                recovery.context_recovery_pending = False
+                                yield await self._failed_candidate(
+                                    code="context_recovery_exhausted",
+                                    message="The model still exceeded its context window after context recovery. Immediate investigation is required.",
+                                    details={**marker.diagnostic, "outcome": "overflow"},
+                                    retry_hint="dependency_change",
+                                )
+                                return
 
                         model_failure = recovery.request_error is error and not isinstance(error, HarnessError)
                         retryable = policy.enabled and model_failure and is_recoverable_model_failure(error)
@@ -1617,6 +1662,9 @@ class HarnessRunStream[OutputT](AsyncIterator[HarnessStreamEvent[OutputT]]):
         details: dict[str, JsonValue] | None = None,
         retry_hint: RetryHint = "dependency_change",
     ) -> HarnessRunResult[OutputT]:
+        if self.context._model_recovery.context_recovery_pending:
+            await record_outcome(self.context, "failed")
+            self.context._model_recovery.context_recovery_pending = False
         state = await self.context.export_state(self._latest_messages)
         return self._record_inner_candidate(
             HarnessRunResult(

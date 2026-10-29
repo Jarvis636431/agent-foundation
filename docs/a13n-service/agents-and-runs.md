@@ -81,6 +81,13 @@ Ordinary threads can then continue while a summary is generated, provided the cu
 
 Summary requests count toward the originating run's request budget, and their usage may arrive after that run ends. Interrupting a run leaves its background summary running. Archiving the thread retires it; forks do not inherit pending summaries.
 
+Context recovery is enabled by default, independently of agent revision compaction settings. After a native context-window overflow, Harness first tries normal compaction. A successful summary lets the run continue with compacted history.
+
+If ordinary execution and applicable compaction both overflow, Service permits one bounded, lossy history reconstruction per run, including worker takeover. It commits the reconstructed history and consumed allowance before dispatch. History files under the primary environment's `/workspace/.a13n/history/<thread-id>/` are best effort and last only as long as that environment. Unavailable storage or readers do not block reconstruction.
+
+> [!WARNING]
+> Every lossy reconstruction requires immediate root-cause investigation, even after success. Check compaction configuration and unbounded tool output first. Console retains the warning and outcome separately from the final answer.
+
 ### Tool permissions
 
 Use permissions to decide what happens when the model calls a tool:

@@ -158,6 +158,21 @@ class ModelRecoveryState:
     attempt_id: str | None = None
     consecutive_failures: int = 0
     request_error: BaseException | None = None
+    context_replacement: tuple[ModelMessage, ...] | None = None
+    context_recovery_pending: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class ContextRecoveryPolicy:
+    """Native context-overflow recovery, independent of proactive compaction."""
+
+    enabled: bool = True
+    max_history_chars: int = 24_000
+    preserve_history: bool = True
+
+    def __post_init__(self) -> None:
+        if self.max_history_chars < 2048:
+            raise ValueError("max_history_chars must be at least 2048")
 
 
 @dataclass(frozen=True, slots=True)

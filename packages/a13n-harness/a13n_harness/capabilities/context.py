@@ -15,7 +15,7 @@ from xml.etree.ElementTree import Element, SubElement, tostring
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator, model_validator
 from pydantic_ai import ModelRetry, ModelSettings, RunContext
 from pydantic_ai.capabilities import AbstractCapability, CapabilityOrdering
-from pydantic_ai.exceptions import ModelHTTPError, ToolFailed
+from pydantic_ai.exceptions import ModelContextWindowExceededError, ModelHTTPError, ToolFailed
 from pydantic_ai.messages import (
     BaseToolReturnPart,
     CapabilityEvent,
@@ -62,6 +62,7 @@ from a13n_harness.compaction import (
     CompactionOperation,
     CompactionOperator,
     CompactionResult,
+    _compaction_parameters,
     _compaction_retry_delay,
     _CompactionState,
     _prefix_matches,
@@ -809,7 +810,7 @@ class ContextRestoredEvent(CapabilityEvent, namespace="a13n.context", name="rest
     is submitted. It carries no summary content and cannot veto the replacement.
     """
 
-    source: Literal["summarize", "compact"]
+    source: Literal["summarize", "compact", "recovery"]
     operation_id: str
 
 
@@ -870,6 +871,8 @@ class CompactionCapability(AbstractCapability[AgentContext]):
         self._failed_fallback_id: str | None = None
         self._summary_failure: Exception | None = None
         self._summary_attempts = 0
+        self._primary_request: ModelRequestContext | None = None
+        self._summary_request: ModelRequestContext | None = None
 
     def get_ordering(self) -> CapabilityOrdering:
         from a13n_harness.usage import UsageCapability
@@ -905,13 +908,43 @@ class CompactionCapability(AbstractCapability[AgentContext]):
         self, ctx: RunContext[AgentContext], request_context: ModelRequestContext
     ) -> ModelRequestContext:
         state = await ctx.deps.state.read(COMPACTION_CAPABILITY_ID, _CompactionState, version="1")
-        if ctx.deps._compacting or self._depth > 0 or (state is not None and state.restoration_pending):
+        if ctx.deps._compacting or self._depth > 0:
+            return request_context
+        if ctx.deps._model_recovery.context_recovery_pending:
+            # Retire old work without generating, waiting for or applying a summary.
+            if self.operator is not None:
+                operation = await self.operator.inspect(ctx.deps.thread_id)
+                if operation is not None:
+                    basis = operation.input.basis
+                    await ctx.deps.state.write(
+                        COMPACTION_CAPABILITY_ID,
+                        _CompactionState(
+                            operation_id=basis.operation_id, basis_digest=basis.digest, disposition="skipped"
+                        ),
+                        version="1",
+                    )
+            return request_context
+        if state is not None and state.restoration_pending:
             return request_context
         if self.background:
             prepared = await self._background_history(ctx, request_context)
         else:
             prepared = await self._compact_history(ctx, request_context)
+        self._primary_request = prepared
         return prepared
+
+    async def compact_overflow(
+        self, ctx: RunContext[AgentContext], request: ModelRequestContext
+    ) -> Literal["compacted", "overflow", "unchanged"]:
+        """Reuse a native failure or report the outcome of ordinary compaction."""
+        request = self._primary_request or request
+        if self._summary_request is request and isinstance(self._summary_failure, ModelContextWindowExceededError):
+            return "overflow"
+        prepared = await self._compact_history(ctx, request, force=True)
+        if isinstance(self._summary_failure, ModelContextWindowExceededError):
+            return "overflow"
+        # Compare within the same projection stage, not with the caller's request.
+        return "compacted" if prepared is not request else "unchanged"
 
     async def apply_result(
         self,
@@ -1051,6 +1084,23 @@ class CompactionCapability(AbstractCapability[AgentContext]):
         *,
         failed: CompactionOperation | None = None,
     ) -> ModelRequestContext:
+        from a13n_harness.capabilities.context_recovery import context_recovery_enabled
+
+        if (
+            context_recovery_enabled(ctx)
+            and failed is not None
+            and failed.error_code == "model_context_window_exceeded"
+            and _prefix_matches(failed.input.basis, ctx.messages)
+            and failed.input.model_id == request.model_id
+            and failed.input.model_name == request.model.model_name
+            and failed.input.provider_name == request.model.system
+            and failed.input.settings == (request.model_settings or {})
+            and failed.input.parameters == _compaction_parameters(request.model_request_parameters)
+        ):
+            # Reuse the applicable native failure, never repeat it just to prove overflow.
+            self._summary_failure = ModelContextWindowExceededError(request.model.model_name, "Compaction overflow")
+            self._summary_request = request
+            return request
         fits = await _compaction_request_fits(ctx, request)
         snapshot = _compaction_snapshot(ctx, request.messages, self.policy)
         if fits is True and (snapshot is None or not snapshot[2]):
@@ -1063,6 +1113,10 @@ class CompactionCapability(AbstractCapability[AgentContext]):
                 self._failed_fallback_id = failed.input.basis.operation_id
             prepared = await self._compact_history(ctx, request, force=fits is not True, failed=failed)
         if prepared is request:
+            if context_recovery_enabled(ctx) and isinstance(self._summary_failure, ModelContextWindowExceededError):
+                # A summary-only overflow is not permission to discard history.
+                # Send the ordinary request once, without retrying this summary.
+                return request
             if fits is not True:
                 cause = self._summary_failure
                 if cause is not None:
@@ -1130,6 +1184,7 @@ class CompactionCapability(AbstractCapability[AgentContext]):
         if not force and (snapshot is None or not snapshot[2]):
             return request_context
         self._summary_failure = None
+        self._summary_request = request_context
         self._summary_attempts = 0
         if not _compaction_has_request_budget(ctx):
             # Optional compaction needs a summary request and the pending ordinary request.

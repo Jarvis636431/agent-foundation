@@ -89,6 +89,16 @@ def _parts(item: Item) -> list[dict[str, Any]]:
                 },
             }
         ]
+    if name == "a13n.harness.recovery":
+        recovery = event.get("payload")
+        if isinstance(recovery, dict) and recovery.get("type") == "context_recovery":
+            return [
+                {
+                    "kind": "other",
+                    "text": f"{recovery.get('warning', '')} Outcome: {recovery.get('outcome', 'unknown')}.",
+                    "metadata": {"a13n.recovery": "context_recovery"},
+                }
+            ]
     if isinstance(name, str) and name.startswith("a13n.input."):
         return [{"kind": "user", "text": str(event.get("content", "")), "metadata": metadata}]
     return []

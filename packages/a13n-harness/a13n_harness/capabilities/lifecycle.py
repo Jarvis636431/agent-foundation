@@ -11,7 +11,7 @@ from typing import Any
 from pydantic_ai import RunContext
 from pydantic_ai.agent import CallToolsNode, ModelRequestNode
 from pydantic_ai.capabilities import AbstractCapability, CapabilityOrdering
-from pydantic_ai.exceptions import ModelHTTPError
+from pydantic_ai.exceptions import ModelContextWindowExceededError, ModelHTTPError
 
 from a13n_harness.context import AgentContext
 from a13n_harness.errors import DefinitionError, HarnessError
@@ -82,6 +82,7 @@ class _LifecycleEventActiveCapability(LifecycleEventCapability):
         request_index = self._next_request_index
         self._next_request_index += 1
         request_id = f"model-request-{request_index + 1}"
+        previous_request_index = self._active_request_index
         self._active_request_index = request_index
         await emit_harness_event(
             ctx.deps.events,
@@ -101,6 +102,13 @@ class _LifecycleEventActiveCapability(LifecycleEventCapability):
         except BaseException as exc:
             if primary_request:
                 recovery.request_error = exc
+                if isinstance(exc, ModelContextWindowExceededError):
+                    from a13n_harness.capabilities.context_recovery import ContextRecoveryCapability
+
+                    for capability in ctx.capabilities.values():
+                        if isinstance(capability, ContextRecoveryCapability):
+                            await capability.recover_overflow(ctx)
+                            break
             try:
                 await emit_harness_event(
                     ctx.deps.events,
@@ -114,7 +122,20 @@ class _LifecycleEventActiveCapability(LifecycleEventCapability):
             # A retry node, partial stream, or auxiliary Agent response is not
             # accepted progress in the primary execution being recovered.
             if primary_request and isinstance(result, CallToolsNode) and result.model_response.state == "complete":
+                from a13n_harness.capabilities.context_recovery import (
+                    CONTEXT_RECOVERY_CAPABILITY_ID,
+                    ContextRecoveryCapability,
+                )
+
                 recovery.consecutive_failures = 0
+                context_recovery = ctx.capabilities.get(CONTEXT_RECOVERY_CAPABILITY_ID)
+                if isinstance(context_recovery, ContextRecoveryCapability):
+                    context_recovery.record_primary_progress()
+                if recovery.context_recovery_pending:
+                    from a13n_harness._context_recovery import record_outcome
+
+                    await record_outcome(ctx.deps, "resumed")
+                    recovery.context_recovery_pending = False
             await emit_harness_event(
                 ctx.deps.events,
                 kind="lifecycle",
@@ -125,7 +146,7 @@ class _LifecycleEventActiveCapability(LifecycleEventCapability):
             )
             return result
         finally:
-            self._active_request_index = None
+            self._active_request_index = previous_request_index
 
     def _require_context(self, ctx: RunContext[AgentContext]) -> None:
         if ctx.deps is not self._context:
