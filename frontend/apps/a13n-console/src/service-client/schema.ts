@@ -2962,7 +2962,7 @@ export interface paths {
     /**
      * Session Stream
      * @description The session's threads and the live output of their runs over SSE: `thread`, `items`, `delta` and `gap`
-     *     frames, plus `schedule` and `occurrence` state for Schedule-owned sessions. Every connection starts from a snapshot.
+     *     frames, plus `schedule` and `occurrence` state scoped to this session. Every connection starts from a snapshot.
      */
     get: operations["session_stream"];
     put?: never;
@@ -10647,6 +10647,7 @@ export interface components {
       state: components["schemas"]["ScheduleState"];
       /** Stream Url */
       stream_url: string;
+      target: components["schemas"]["ScheduleTarget"];
       /**
        * Updated At
        * Format: date-time
@@ -10687,6 +10688,7 @@ export interface components {
        * @enum {string}
        */
       state?: "paused" | "enabled";
+      target?: components["schemas"]["ScheduleTarget"];
     };
     /** ScheduleInvocation */
     "ScheduleInvocation-Input": {
@@ -10775,6 +10777,22 @@ export interface components {
       /** Session Id */
       session_id: string;
     };
+    /**
+     * ScheduleTarget
+     * @description Omitted IDs create a session and, for thread mode, one empty reusable thread.
+     */
+    ScheduleTarget: {
+      /**
+       * Mode
+       * @default new_thread
+       * @enum {string}
+       */
+      mode?: "new_thread" | "thread";
+      /** Session Id */
+      session_id?: string | null;
+      /** Thread Id */
+      thread_id?: string | null;
+    };
     /** ScheduleTime */
     ScheduleTime: {
       /**
@@ -10804,6 +10822,7 @@ export interface components {
       /** Name */
       name?: string | null;
       schedule?: components["schemas"]["ScheduleRule"] | null;
+      target?: components["schemas"]["ScheduleTarget"] | null;
     };
     /** SelectedTrace */
     SelectedTrace: {

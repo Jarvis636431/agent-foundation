@@ -56,7 +56,14 @@ async def _views(session: AsyncSession, rows: Sequence[SessionRow]) -> list[Sess
     workspace_id = rows[0].workspace_id
     ids = [row.id for row in rows]
     schedules = dict(
-        (await session.execute(select(ScheduleRow.session_id, ScheduleRow.id).where(ScheduleRow.session_id.in_(ids))))
+        (
+            await session.execute(
+                select(ScheduleRow.session_id, func.min(ScheduleRow.id))
+                .where(ScheduleRow.session_id.in_(ids))
+                .group_by(ScheduleRow.session_id)
+                .having(func.count() == 1)
+            )
+        )
         .tuples()
         .all()
     )
@@ -291,8 +298,6 @@ async def update_session(
             row.labels = dict(body.labels)
         if body.memory is not None:
             require_conversation(row)
-            if await session.scalar(select(ScheduleRow.id).where(ScheduleRow.session_id == row.id)) is not None:
-                raise conflict("session", row.id, "schedule_managed_memory")
             await configure(session, row, body.memory)
         await session.flush()
         return (await _views(session, [row]))[0]
