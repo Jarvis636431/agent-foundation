@@ -15,7 +15,7 @@
   line-height: 20px;
 }
 .section > [data-slot="settings-section-content"]:not([data-variant="plain"]) {
-  border-radius: 8px;
+  border-radius: var(--harness-radius-panel);
   padding: 4px var(--harness-group-inset);
 }
 .section
@@ -166,15 +166,11 @@
 @media (max-width: 600px) {
   .row [data-slot="select-trigger"] {
     height: auto;
-    padding-block: 8px;
+    padding-block: 4px;
   }
   .row button[role="combobox"] {
     height: auto;
-    padding-block: 8px;
-  }
-  .row button[role="combobox"] :global(.truncate) {
-    white-space: normal;
-    overflow-wrap: anywhere;
+    padding-block: 4px;
   }
   .row [data-slot="select-value"] {
     display: -webkit-box;
@@ -209,4 +205,88 @@
 .row button[role="combobox"] > span:first-child > span {
   width: auto;
   flex: 0 1 auto;
+}
+
+/* Identity labels use w-0 in full-width pickers. Compact settings values
+   must retain their intrinsic text width before truncating to the row. */
+.row button[role="combobox"] > span:first-child > span > :global(.truncate) {
+  width: auto;
+  flex: 0 1 auto;
+}
+
+/* Dialogs have a bounded reading width, so descriptions use the whole row. */
+:global([data-a13n-modal]) .row > :first-child {
+  display: contents;
+}
+:global([data-a13n-modal]) .row [data-slot="settings-row-label"] {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: center;
+}
+:global([data-a13n-modal]) .row > :first-child > p {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  margin: 0 0 4px;
+}
+/* Text entry needs a full-width field; compact choices stay beside labels. */
+:global([data-a13n-modal]) .row:has(.textInput, input[type="password"]) {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  padding-block: 12px;
+}
+:global([data-a13n-modal])
+  .row:has(.textInput, input[type="password"])
+  > :last-child {
+  grid-column: 1;
+  grid-row: 2;
+  width: 100%;
+}
+:global([data-a13n-modal])
+  .row:has(.textInput, input[type="password"])
+  > :first-child
+  > p {
+  grid-row: 3;
+  margin: 0;
+}
+:global([data-a13n-modal]) .textInput {
+  width: 100%;
+}
+
+@media (max-width: 480px) {
+  :global([data-a13n-modal])
+    .row:has([data-slot="select-trigger"], button[role="combobox"]) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  :global([data-a13n-modal])
+    .row:has([data-slot="select-trigger"], button[role="combobox"])
+    > :last-child {
+    grid-column: 1;
+    grid-row: 2;
+    width: 100%;
+  }
+  :global([data-a13n-modal])
+    .row:has([data-slot="select-trigger"], button[role="combobox"])
+    > :first-child
+    > p {
+    grid-row: 3;
+  }
+  :global([data-a13n-modal]) .row [data-slot="select-trigger"],
+  :global([data-a13n-modal]) .row button[role="combobox"] {
+    width: 100%;
+    max-width: none;
+    padding-inline: 0;
+    justify-content: space-between;
+    text-align: left;
+  }
+  :global([data-a13n-modal]) .row [data-slot="select-value"] {
+    text-align: left;
+  }
+  :global([data-a13n-modal])
+    .row
+    [data-slot="select-trigger"]
+    > span:first-child,
+  :global([data-a13n-modal]) .row button[role="combobox"] > span:first-child {
+    justify-content: flex-start;
+  }
 }

@@ -148,7 +148,7 @@
 .modelLink:focus-visible::after {
   outline: 2px solid var(--ring);
   outline-offset: -2px;
-  border-radius: 12px;
+  border-radius: var(--harness-radius-panel);
 }
 @media (max-width: 600px) {
   .modelList > .modelRow {
@@ -193,4 +193,11 @@
 .defaultsSummary strong {
   color: var(--a13n-text);
   font-weight: 500;
+}
+
+/* Modal forms share the compact rhythm of project creation. */
+:global([data-a13n-modal]) .modelEditor,
+:global([data-a13n-modal]) .modelTabs,
+:global([data-a13n-modal]) .modelPanel:not([hidden]) {
+  gap: 16px;
 }
