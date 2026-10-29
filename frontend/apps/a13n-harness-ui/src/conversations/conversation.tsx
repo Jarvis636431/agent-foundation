@@ -67,6 +67,7 @@ import layout from "../shell/workbench.module.css";
 import { useResults } from "./results";
 import { savedResultVisible } from "./result-visibility";
 import { ConversationOpening, useInitialReady } from "./opening";
+import { canDeleteThread, DeleteThread } from "./delete-thread";
 
 export function ConversationPage(props: {
   profile: Profile;
@@ -185,6 +186,7 @@ function ConversationContent({
     if (!open) closeDialog();
   };
   const [title, setTitle] = useState("");
+  const [deleting, setDeleting] = useState(false);
   const [inspectionActions, setInspectionActions] =
     useState<HTMLDivElement | null>(null);
   const inspection = !guest && dialog === "details";
@@ -1174,12 +1176,27 @@ function ConversationContent({
                       Archive chat
                     </Button>
                   )}
+                {!guest && thread && canDeleteThread(thread) && (
+                  <Button
+                    variant="destructive-outline"
+                    disabled={thread.root_activity.state !== "inactive"}
+                    onClick={() => {
+                      setInspection(false);
+                      setDeleting(true);
+                    }}
+                  >
+                    Delete chat
+                  </Button>
+                )}
               </div>
             }
             readOnly={readOnly}
           />
         </ModalFrame>
       </div>
+      {deleting && thread && (
+        <DeleteThread thread={thread} close={() => setDeleting(false)} />
+      )}
     </ConversationOpening>
   );
 }
