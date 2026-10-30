@@ -662,3 +662,69 @@ def test_schedule_target_migration_replaces_unique_session_index(database):  # t
     upgrade(database, OSS)
     assert session_indexes() == [("ix_schedules_session_id", "false", "session_id")]
     check(database, OSS)
+
+
+def test_browser_revision_roundtrip(empty_database: Database) -> None:
+    with migration_connection(empty_database, OSS) as config:
+        command.upgrade(config, "a9acb6772400")
+    original_rules, original_objects = rows(empty_database, RULES), rows(empty_database, OBJECTS)
+    upgrade(empty_database, OSS)
+    check(empty_database, OSS)
+    with migration_connection(empty_database, OSS) as config:
+        command.downgrade(config, "a9acb6772400")
+    assert rows(empty_database, RULES) == original_rules
+    assert rows(empty_database, OBJECTS) == original_objects
+    upgrade(empty_database, OSS)
+    check(empty_database, OSS)
+
+
+@pytest.mark.anyio
+async def test_external_browser_migration_defaults_constraints_and_downgrade(service, runs_kit):
+    from .test_browser_external import attach
+    from .test_browsers import setup
+
+    _, managed = await setup(service, runs_kit)
+    database = service.runtime.settings.database
+    # Server default also supports old managed writers during the expand rollout.
+    assert rows(
+        database,
+        "SELECT column_default FROM information_schema.columns WHERE table_name='browsers' AND column_name='source'",
+    ) == [("'managed'::character varying",)]
+    external = await attach(service, runs_kit)
+    engine = create_engine(database.url.get_secret_value())
+    try:
+        for assignment in ("source = 'unknown'", "provider_id = NULL"):
+            with engine.begin() as connection:
+                with pytest.raises(DBAPIError, match="source_provider"):
+                    connection.execute(text(f"UPDATE browsers SET {assignment} WHERE id=:id"), {"id": managed["id"]})
+        with engine.begin() as connection:
+            with pytest.raises(DBAPIError, match="source_control"):
+                connection.execute(text("UPDATE browsers SET control='human' WHERE id=:id"), {"id": external["id"]})
+    finally:
+        engine.dispose()
+    with pytest.raises(DBAPIError, match="Browser state exists"):
+        with migration_connection(database, OSS) as config:
+            command.downgrade(config, "a9acb6772400")
+    assert rows(database, "SELECT source FROM browsers ORDER BY source") == [("external_cdp",), ("managed",)]
+    check(database, OSS)
+
+
+@pytest.mark.anyio
+async def test_browser_control_due_migration_roundtrip_preserves_resource_stamp(service, runs_kit):
+    from .test_browsers import setup
+
+    _, browser = await setup(service, runs_kit)
+    database = service.runtime.settings.database
+    query = f"SELECT version FROM browsers WHERE id='{browser['id']}'"
+    engine = create_engine(database.url.get_secret_value())
+    try:
+        before = rows(database, query)[0][0]
+        with engine.begin() as connection:
+            connection.execute(text("UPDATE browsers SET control_due_at=now() WHERE id=:id"), {"id": browser["id"]})
+        assert rows(database, query)[0][0] == before
+        with engine.begin() as connection:
+            connection.execute(text("UPDATE browsers SET name='updated' WHERE id=:id"), {"id": browser["id"]})
+        assert rows(database, query)[0][0] == before + 1
+    finally:
+        engine.dispose()
+    check(database, OSS)

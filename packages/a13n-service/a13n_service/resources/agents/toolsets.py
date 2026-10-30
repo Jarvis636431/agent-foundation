@@ -30,7 +30,7 @@ from a13n_service.providers.registry import WebOperation
 PUBLISH_ASSET_TOOL_ID = "service.publish_asset"
 PLATFORM_SOURCE = "platform"
 
-type ToolsetKey = Literal["files", "shell", "computer", "web", "memory", "assets"] | PlatformGroup
+type ToolsetKey = Literal["files", "shell", "computer", "browser", "web", "memory", "assets"] | PlatformGroup
 ToolKey = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_]{0,63}$")]
 JsonObject = dict[str, JsonValue]
 SupportedPermission = Literal["inherit", "allow", "ask", "deny", "review"]
@@ -195,6 +195,26 @@ def _platform(group: PlatformGroup, display_name: str, description: str) -> _Too
 
 
 _TOOLSETS: tuple[_Toolset, ...] = (
+    _Toolset(
+        "browser",
+        "Browser",
+        False,
+        tuple(
+            _Tool(key, key.title(), f"browser.{key}", f"browser_{key}", description=description)
+            for key, description in (
+                ("observe", "Observe the selected page and obtain element references"),
+                ("read", "Read page text, links, forms, tables, or attributes"),
+                ("navigate", "Navigate the selected tab or traverse its history"),
+                ("act", "Interact with an observed element or screenshot location"),
+                ("wait", "Wait for a page condition"),
+                ("tabs", "List, open, select, or close accessible tabs"),
+                ("dialog", "Inspect, accept, or dismiss a browser dialog"),
+                ("files", "Inspect downloads or upload files through the browser binding"),
+                ("screenshot", "Capture the selected page or a viewport region"),
+            )
+        ),
+        description="Native browser tools on the Thread's managed Browser binding.",
+    ),
     _Toolset(
         "files",
         "Files",

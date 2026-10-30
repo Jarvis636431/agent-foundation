@@ -221,6 +221,13 @@ class Control(Section):
     sweep_batch: int = Field(default=100, ge=1, le=10000)
     inbox_count: int = Field(default=128, ge=1, le=10000)
     inbox_bytes: int = Field(default=2097152, ge=1024, le=16777216)
+    # Browser-wide control intent includes draining; applications renew while human input is needed.
+    browser_control_min_seconds: int = Field(default=60, ge=1)
+    # Match the one-year bound used for other long-lived service durations.
+    browser_control_max_seconds: int = Field(default=3600, ge=1, le=31536000)
+    browser_control_seconds: int = Field(default=300, ge=1)
+    # Starts only when viewer revocation and inventory synchronization complete successfully.
+    browser_notice_seconds: int = Field(default=86400, ge=60, le=604800)
     # Per workspace; also bounds the subscriptions one transition stages deliveries for.
     subscriptions: int = Field(default=32, ge=1, le=1000)
     # One whole webhook POST.
@@ -229,6 +236,26 @@ class Control(Section):
     import_timeout: float = Field(default=30, gt=0, le=120)
     # How stale a session stream's authority and thread states may become while no reader asks for a refresh.
     stream_refresh_seconds: float = Field(default=2, gt=0, le=60)
+
+    @field_validator(
+        "browser_control_min_seconds", "browser_control_max_seconds", "browser_control_seconds", mode="before"
+    )
+    @classmethod
+    def control_seconds_integer(cls, value: object) -> int:
+        if isinstance(value, str) and value.isdecimal():
+            return int(value)
+        if isinstance(value, int) and not isinstance(value, bool):
+            return value
+        raise ValueError("browser control duration must be a positive integer")
+
+    @model_validator(mode="after")
+    def control_bounds(self) -> "Control":
+        if not self.browser_control_min_seconds <= self.browser_control_seconds <= self.browser_control_max_seconds:
+            raise ValueError(
+                "control.browser_control_min_seconds must not exceed control.browser_control_seconds, "
+                "which must not exceed control.browser_control_max_seconds"
+            )
+        return self
 
 
 class Schedules(Section):
