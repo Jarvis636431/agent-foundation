@@ -1,0 +1,21 @@
+packages/a13n-harness/a13n_harness/_context_recovery.py
+  s_7414cf24cafae4::t_006f74015bdb7d 224-225
+packages/a13n-harness/tests/test_context_recovery.py
+  s_7414cf24cafae4::t_b0c695bef3b51d 97-100,103,127-132
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "d4766e19764f4f5bf2418fc2fad6ea9f30498577",
+  "prompts": {},
+  "sessions": {
+    "s_7414cf24cafae4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a20d7d-54d8-7152-a6da-0333602e5a19",
+        "model": "gpt-6.2-sol"
+      },
+      "human_author": "Jarvis <mengda636431@gmail.com>"
+    }
+  }
+}
