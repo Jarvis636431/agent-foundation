@@ -158,14 +158,17 @@ def ensure_instance(root: Path) -> Instance:
     """This checkout's instance; the first call reserves a free port block that never moves afterwards."""
     root = root.resolve()
     with machine_lock():
-        # Checkouts deleted from disk release their reservation.
-        records = {path: record for path, record in registered_instances().items() if Path(path).is_dir()}
+        # Keep attribution for orphaned Docker resources until an explicit prune.
+        records = registered_instances()
         recorded = load_instance(root)
         registered = records.get(str(root))
         if recorded and registered and recorded != registered:
             raise ValueError(f"{instance_file(root)} does not match this checkout's machine registration")
         others = {
-            port for path, record in records.items() if path != str(root) for port in record.ports.named().values()
+            port
+            for path, record in records.items()
+            if path != str(root) and Path(path).is_dir()
+            for port in record.ports.named().values()
         }
         instance = recorded or registered
         if instance is None:

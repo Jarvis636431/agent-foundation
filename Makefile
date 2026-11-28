@@ -200,7 +200,9 @@ harness-dev: harness-env ## Run SDK observation scenarios; initialize .env if mi
 harness-ui-smoke: harness-ui-env ## Exercise HarnessUiApp with a scripted model; initialize .env if missing
 	@uv run --locked --env-file "$(HARNESS_UI_ENV)" python -m dev.harness-ui.smoke
 
-.PHONY: dev-down dev-status dev-env-list
+DEV_ENV_PRUNE_ARGS ?= --dry-run
+
+.PHONY: dev-down dev-status dev-env-list dev-env-prune
 dev-down: ## Stop this checkout's PostgreSQL and Redis, preserving their data
 	@$(SERVICE_DEV) down
 
@@ -209,6 +211,9 @@ dev-status: ## Print this checkout's instance, URLs and listeners as JSON withou
 
 dev-env-list: ## List this machine's checkouts and their local instances
 	@python3 -m dev.service.envs list
+
+dev-env-prune: ## Preview stale local dev instances (DEV_ENV_PRUNE_ARGS=--yes deletes them)
+	@python3 -m dev.service.envs prune $(DEV_ENV_PRUNE_ARGS)
 
 .PHONY: service-e2e
 service-e2e: sync ## Run Service E2E scenarios: Control and two Workers over HTTPS with disposable stores (Docker)

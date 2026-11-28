@@ -26,6 +26,7 @@ A fresh database contains the administrator plus the automatically provisioned L
 | `make dev-reset STATE=empty`  | Delete this checkout's data and rebuild the schema and administrator                        |
 | `make dev-reset STATE=seeded` | The same, then seed and verify representative content                                       |
 | `make dev-env-list`           | List this machine's checkouts, their instances, stores and running applications             |
+| `make dev-env-prune`          | Preview orphaned stores and stale checkout registrations                                    |
 | `make db-upgrade`, `db-check` | Migrate, or check the migration state of, this checkout's database (`var/dev/service.toml`) |
 
 Do not assume ports: `make dev-status` reports them. It changes nothing and works in a fresh checkout, where it reports `configured: false`.
@@ -38,7 +39,9 @@ One resolver, `checkout.py`, derives everything local from the instance and writ
 
 The checkout offers the Docker Browser provider with allocation records under `var/dev/browsers`. Build its runtime with `make image-browser`, then create a Browser provider in Console with that local image name. Creating and starting Browsers is explicit; `make dev` does not allocate them. Native Browser support remains disabled. A stopped Docker Browser retains its original container and private profile; `make dev-stop` leaves Browser containers running. Delete fixture Browsers through the API or Console before resetting checkout data.
 
-Each checkout owns the Compose project `a13n-service-dev-<instance>` with its own PostgreSQL and Redis volumes. `make dev-down` stops them; `make dev-reset` deletes and recreates them. A lifecycle lock (`var/dev/lifecycle.lock`) admits one setup, reset, down or application run at a time, so a reset or down is refused while applications run; stop them first.
+Each checkout owns the Compose project `a13n-service-dev-<instance>` with its own PostgreSQL and Redis volumes. Run `make dev-stop` and `make dev-down` when finished with a temporary stack. `make dev-down` preserves store data; `make dev-reset` deletes and recreates it. A lifecycle lock (`var/dev/lifecycle.lock`) admits one setup, reset, down or application run at a time, so a reset or down is refused while applications run; stop them first.
+
+Both store containers rotate Docker JSON logs at `10m`, retaining up to three files per container. PostgreSQL checkpoints target a `256MB` maximum and `64MB` minimum WAL size; `max_wal_size` is a soft limit. Redis keeps its append-only persistence and enforces a `256mb` memory limit for the dataset. It rejects writes at the limit rather than evicting run events or leases. These settings limit workload-generated overhead; the persistent stores have no total disk quota.
 
 ## Seeded state
 
@@ -121,6 +124,10 @@ In a seeded checkout, the seeded reset and every application start (`make dev`, 
 
 With `TRACES=auto` (the default), `make dev`, `make service-dev` and resets export traces to the machine-shared Langfuse (`make langfuse-up`, `http://127.0.0.1:3000`) when it is already running and its local project keys authenticate; otherwise tracing is off. Starting the shared stack takes minutes, so it never starts implicitly: run `make langfuse-up` and restart, or pass `TRACES=langfuse` to start it first. `TRACES=none` turns tracing off. Spans carry the deployment environment `local-<instance>`, which separates checkouts in Langfuse; the Console's trace views query the same backend. The public Langfuse account is `dev@agent-foundation.local` / `agent-foundation-local`.
 
+All six Langfuse containers rotate Docker JSON logs at `10m`, retaining up to three files per container, and do not restart automatically. ClickHouse disables high-volume system logs, rotates its file logs at `10M` with two backups per file, and uses a `512m` `/tmp` tmpfs for query spill. Trace and object data still grow as traces are recorded. Run `make langfuse-down` when no checkout needs Langfuse; this preserves stored traces.
+
+The shared stack keeps the Compose definition it was initialized with. If `make langfuse-up` reports that the definition changed, run `make langfuse-reset` before `make langfuse-up` to adopt it. Reset permanently deletes all local Langfuse trace data. Use `make langfuse-down` to stop the old stack without a reset. To keep using the stored data, run `make langfuse-up` from a checkout with the matching definition.
+
 ## Other checkouts
 
 `make dev-env-list` (or `python3 -m dev.service.envs list --json`) lists this repository's worktrees and every registered checkout with its instance, ports, store state and running applications, plus Compose projects of this workflow whose checkout is no longer registered.
@@ -130,7 +137,25 @@ python3 -m dev.service.envs rm ID1 ID2 --dry-run
 python3 -m dev.service.envs rm ID1 ID2 --yes
 ```
 
-Removal stops the checkout's applications, deletes its Compose containers and volumes and its `var/dev`, and releases its port reservation. It keeps the worktree itself and the shared Langfuse. Unregistered projects are listed for investigation only.
+Removal stops the checkout's applications, deletes its Compose containers and volumes and its `var/dev`, and releases its port reservation. It keeps the worktree itself and the shared Langfuse. For a finished task, remove its dev instance before removing the clean, merged worktree.
+
+If a checkout was already deleted, use the same Docker context and machine state directory that you use for local development:
+
+```sh
+make dev-env-prune
+# Review the preview, then confirm removal of the registrations and stores marked for deletion:
+make dev-env-prune DEV_ENV_PRUNE_ARGS=--yes
+```
+
+Pruning deletes stale registrations and removes `a13n-service-dev-<instance>` Compose projects whose checkout path is gone, as recorded in the registry or the project’s container labels. Pruning preserves existing checkout paths, Git-locked worktrees (including temporarily unmounted ones), and unrelated Compose projects such as shared Langfuse.
+
+Legacy volumes left behind without a registration or containers have no checkout path. Prune lists these projects and skips them by default. After verifying that nobody still uses a listed project, add `--project` with its full name to explicitly include it:
+
+```sh
+make dev-env-prune DEV_ENV_PRUNE_ARGS='--yes --project a13n-service-dev-0123456789ab'
+```
+
+Repeat `--project` for each verified legacy project. Run `python3 -m dev.service.envs prune --dry-run` or `python3 -m dev.service.envs prune --yes` for the same operations without Make.
 
 ## Subagent configuration cutover
 

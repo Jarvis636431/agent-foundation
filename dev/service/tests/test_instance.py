@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from dev.service import instance
 from dev.service.instance import ensure_instance, instance_file, load_instance, require_free
 
 
@@ -39,15 +40,24 @@ def test_a_copied_instance_file_is_refused(tmp_path: Path, checkout_root: Path) 
         ensure_instance(copy)
 
 
-def test_a_deleted_checkout_releases_its_block(tmp_path: Path, machine: Path) -> None:
+def test_a_deleted_checkout_releases_its_block_but_keeps_attribution_until_prune(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     gone = tmp_path / "gone"
     gone.mkdir()
-    ensure_instance(gone)
+    stale = ensure_instance(gone)
     shutil.rmtree(gone)
     survivor = tmp_path / "survivor"
     survivor.mkdir()
-    ensure_instance(survivor)
-    assert set(json.loads((machine / "checkouts.json").read_text())) == {str(survivor.resolve())}
+
+    def allocate(root: Path, reserved: set[int]) -> instance.Ports:
+        assert reserved.isdisjoint(stale.ports.named().values())
+        return stale.ports
+
+    monkeypatch.setattr(instance, "_allocate", allocate)
+    live = ensure_instance(survivor)
+    assert live.ports == stale.ports
+    assert instance.registered_instances() == {str(gone): stale, str(survivor): live}
 
 
 def test_an_occupied_assigned_port_fails_instead_of_moving(checkout_root: Path) -> None:

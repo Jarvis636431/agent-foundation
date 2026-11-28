@@ -36,6 +36,8 @@ Use the selected worktree explicitly for file paths, command working directories
 
 Implement the requested task and validate according to [Local Validation](../../../CONTRIBUTING.md#local-validation). Prepare only the dependencies needed for the work; do not automatically copy private `.env` files or link another checkout's `.venv` or `node_modules`. Service work follows [its development guide](../../../dev/service/README.md), including `make dev-status` for checkout-specific URLs and ports.
 
+When validation no longer needs the local stack, run `make dev-stop` for its applications and `make dev-down` for its stores. For disposable data, use `python3 -m dev.service.envs rm <id> --yes` to remove the checkout's instance. Run `make langfuse-down` if this task started shared Langfuse and no other checkout still needs it.
+
 After synchronizing an existing task branch with `main`, run `uv run --locked python scripts/check_migration_heads.py` before committing. Concurrent migration files can merge without textual conflicts while leaving multiple Alembic heads; follow [Database Changes](../../../CONTRIBUTING.md#database-changes) to reconcile them.
 
 ## Frontend Screenshot Evidence
@@ -79,4 +81,11 @@ As part of that authorized merge workflow, help bring the primary checkout up to
 2. If it is clean and on `main`, fast-forward it with `git -C <primary> merge --ff-only origin/main`.
 3. If it is on another branch, confirm switching to `main` unless already authorized; do not merge `origin/main` into an unrelated task branch. If it is dirty or local `main` cannot fast-forward, preserve it and report what blocks synchronization rather than stashing, resetting, or rebasing it.
 
-Report the merge and synchronization outcomes separately. Keep worktrees and branches unless their removal is requested.
+Clean up the merged task's local resources once follow-up validation is done:
+
+1. Verify the task worktree is clean and its branch tip matches the merged PR's head. Preserve dirty worktrees, worktrees for open PRs, and any local work beyond the merged head.
+2. Remove the task's registered local dev instance with `python3 -m dev.service.envs rm <id> --yes` before removing its worktree. Verify the ID belongs to the task checkout. If instance removal fails, keep the worktree for recovery.
+3. From the primary checkout, run `git worktree remove <task-worktree>` and delete the merged local branch with `git branch -d <task-branch>` when safe. Do not force either removal.
+4. If stale dev environments remain, preview them with `make dev-env-prune`. Apply `make dev-env-prune DEV_ENV_PRUNE_ARGS=--yes` only when the user has authorized removing all listed stale registrations and stores.
+
+Report the merge, synchronization, and cleanup outcomes separately, including what was kept.

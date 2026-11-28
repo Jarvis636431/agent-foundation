@@ -1,5 +1,11 @@
 # Owned by dev.service.langfuse; configuration comes from SERVICE_CONFIG, never .env.
 
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 x-langfuse-environment: &langfuse-environment
   NEXTAUTH_URL: http://127.0.0.1:${LANGFUSE_LOCAL_PORT:-3000}
   DATABASE_URL: postgresql://langfuse:langfuse@langfuse-postgres:5432/langfuse
@@ -34,7 +40,8 @@ x-langfuse-environment: &langfuse-environment
 services:
   langfuse-web:
     image: docker.langfuse.com/langfuse/langfuse:4
-    restart: unless-stopped
+    restart: "no"
+    logging: *logging
     depends_on:
       langfuse-postgres:
         condition: service_healthy
@@ -68,7 +75,8 @@ services:
 
   langfuse-worker:
     image: docker.langfuse.com/langfuse/langfuse-worker:4
-    restart: unless-stopped
+    restart: "no"
+    logging: *logging
     depends_on:
       langfuse-postgres:
         condition: service_healthy
@@ -93,7 +101,8 @@ services:
 
   langfuse-postgres:
     image: postgres:17-alpine
-    restart: unless-stopped
+    restart: "no"
+    logging: *logging
     environment:
       POSTGRES_DB: langfuse
       POSTGRES_USER: langfuse
@@ -112,7 +121,8 @@ services:
 
   langfuse-clickhouse:
     image: clickhouse/clickhouse-server:25.12
-    restart: unless-stopped
+    restart: "no"
+    logging: *logging
     user: "101:101"
     environment:
       CLICKHOUSE_DB: default
@@ -131,10 +141,14 @@ services:
     volumes:
       - langfuse-clickhouse:/var/lib/clickhouse
       - langfuse-clickhouse-logs:/var/log/clickhouse-server
+    # Keep query spill off the persistent ClickHouse volume.
+    tmpfs:
+      - /tmp:size=512m,mode=1777
 
   langfuse-redis:
     image: redis:7-alpine
-    restart: unless-stopped
+    restart: "no"
+    logging: *logging
     command: ["redis-server", "--requirepass", "langfuse", "--maxmemory-policy", "noeviction"]
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "langfuse", "ping"]
@@ -148,7 +162,8 @@ services:
 
   langfuse-minio:
     image: cgr.dev/chainguard/minio:latest
-    restart: unless-stopped
+    restart: "no"
+    logging: *logging
     entrypoint: sh
     command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
     environment:
@@ -178,7 +193,12 @@ configs:
   clickhouse-local:
     content: |
       <clickhouse>
-          <logger><level>warning</level></logger>
+          <logger>
+              <level>warning</level>
+              <size>10M</size>
+              <count>2</count>
+          </logger>
+          <tmp_path>/tmp/clickhouse/</tmp_path>
           <global_profiler_real_time_period_ns>0</global_profiler_real_time_period_ns>
           <global_profiler_cpu_time_period_ns>0</global_profiler_cpu_time_period_ns>
           <total_memory_profiler_step>0</total_memory_profiler_step>
@@ -188,5 +208,15 @@ configs:
           <processors_profile_log remove="1"/>
           <opentelemetry_span_log remove="1"/>
           <background_schedule_pool_log remove="1"/>
-          <text_log><level>warning</level></text_log>
+          <query_log remove="1"/>
+          <query_thread_log remove="1"/>
+          <query_views_log remove="1"/>
+          <query_metric_log remove="1"/>
+          <part_log remove="1"/>
+          <session_log remove="1"/>
+          <text_log remove="1"/>
+          <error_log remove="1"/>
+          <crash_log remove="1"/>
+          <asynchronous_insert_log remove="1"/>
+          <latency_log remove="1"/>
       </clickhouse>

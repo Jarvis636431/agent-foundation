@@ -107,6 +107,7 @@ Use the Makefile as the stable development interface:
 | `make dev-state-check`           | Check local development tools; seed a disposable instance          |
 | `make dev-status`                | Report this checkout's identity, ports and listener state as JSON  |
 | `make dev-env-list`              | List this machine's checkouts and their local instances            |
+| `make dev-env-prune`             | Preview orphaned local stores and stale checkout registrations     |
 | `make dev-down`                  | Stop this checkout's infrastructure; preserve data and Langfuse    |
 | `make env-init`                  | Initialize missing Harness development `.env` files                |
 | `make cli`                       | Run Harness UI with Git-ignored config/data in `var/harness-ui/`   |
@@ -117,7 +118,7 @@ Use the Makefile as the stable development interface:
 | `make harness-ui-smoke`          | Run a scripted real-App observation smoke test                     |
 | `make langfuse-up`               | Start the machine-shared local Langfuse trace backend              |
 | `make langfuse-down`             | Stop shared Langfuse while preserving all local trace data         |
-| `make langfuse-reset`            | Explicitly remove all machine-shared local Langfuse data           |
+| `make langfuse-reset`            | Delete all local Langfuse data; required to adopt a changed stack  |
 | `make format`                    | Apply repository formatting hooks                                  |
 | `make lint`                      | Run non-mutating repository lint checks                            |
 | `make deps-check`                | Check each Python package's dependency declarations with deptry    |
@@ -147,6 +148,8 @@ Use the Makefile as the stable development interface:
 | `make image-check`               | Build and smoke-check both container images                        |
 | `make check`                     | Apply formatting, then run fast checks with four parallel workers  |
 | `make check-all`                 | Run the complete component gates, including tests and builds       |
+
+Local Service and Langfuse containers rotate Docker logs. See [the local Service guide](dev/service/README.md) for the storage limits, how to confirm pruning, and how to replace a shared Langfuse definition.
 
 This section owns validation policy; agent guides and skills refer here rather than adding separate gates. Select local checks by the behavior changed and its dependency impact. Start with the smallest checks that cover that impact, include consumers of changed shared behavior or contracts, and stop when those risks are covered. Full application suites, builds, and container checks need a corresponding runtime, packaging, or deployment risk. Ordinary implementation and PR handoff do not require running every gate locally; CI retains the complete applicable suites.
 

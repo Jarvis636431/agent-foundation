@@ -41,7 +41,7 @@ def test_environment_list_shows_checkouts_and_unregistered_projects(
 ) -> None:
     checkout = Checkout.resolve(checkout_root)
     project = f"a13n-service-dev-{checkout.id}"
-    monkeypatch.setattr(envs, "_worktrees", lambda: {str(checkout_root): "feature"})
+    monkeypatch.setattr(envs, "_worktrees", lambda: {str(checkout_root): envs.Worktree("feature")})
     monkeypatch.setattr(
         envs, "_projects", lambda: {project: "running(2)", "a13n-service-dev-0123456789ab": "exited(2)"}
     )

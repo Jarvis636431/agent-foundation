@@ -88,20 +88,26 @@ class Langfuse:
                 raise ValueError(f"Invalid shared Langfuse configuration record: {manifest}") from None
             if not isinstance(value, dict) or type(value.get("compose_sha256")) is not str:
                 raise ValueError(f"Invalid shared Langfuse configuration record: {manifest}")
-            source_hash = (
-                hashlib.sha256((ROOT / "dev/observability/langfuse.compose.yaml").read_bytes()).hexdigest()
-                if require_compatible_source
-                else value["compose_sha256"]
-            )
+            stored_hash = value["compose_sha256"]
             expected = {
                 "version": SHARED_CONFIG_VERSION,
                 "project": self.project,
-                "compose_sha256": source_hash,
+                "compose_sha256": stored_hash,
             }
             if value != expected or not compose.is_file():
                 raise ValueError("Shared Langfuse configuration is missing or incompatible; no resources were changed")
-            if hashlib.sha256(compose.read_bytes()).hexdigest() != value["compose_sha256"]:
+            if hashlib.sha256(compose.read_bytes()).hexdigest() != stored_hash:
                 raise ValueError("Shared Langfuse compose artifact changed unexpectedly; no resources were changed")
+            if (
+                require_compatible_source
+                and hashlib.sha256((ROOT / "dev/observability/langfuse.compose.yaml").read_bytes()).hexdigest()
+                != stored_hash
+            ):
+                raise ValueError(
+                    "Shared Langfuse uses a different Compose definition; no resources were changed. "
+                    "To discard the existing local trace data and adopt this definition, run "
+                    "`make langfuse-reset` before `make langfuse-up`."
+                )
             return compose
         source_content = (ROOT / "dev/observability/langfuse.compose.yaml").read_bytes()
         source_hash = hashlib.sha256(source_content).hexdigest()
