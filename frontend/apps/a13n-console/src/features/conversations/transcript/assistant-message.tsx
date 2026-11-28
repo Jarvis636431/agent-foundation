@@ -92,6 +92,7 @@ export function AgentTurn({
             <RealtimeInputMessage
               key={block.id}
               text={block.entry.text}
+              assetIds={block.entry.assetIds}
               itemId={block.entry.id}
             />
           ) : block.kind === "guidance" ? (

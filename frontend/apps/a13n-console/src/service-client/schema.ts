@@ -13367,6 +13367,11 @@ export interface components {
       /** Max Duration Seconds */
       max_duration_seconds?: number | null;
       /**
+       * Max Images Per Input
+       * @default 0
+       */
+      max_images_per_input?: number;
+      /**
        * Realtime
        * @default false
        */
@@ -13405,6 +13410,11 @@ export interface components {
        * @default
        */
       draft?: string;
+      /**
+       * Draft Asset Ids
+       * @default []
+       */
+      draft_asset_ids?: string[];
       /** @default [] */
       environments?: components["schemas"]["InitialMounts"];
       /** Fork Run Id */
