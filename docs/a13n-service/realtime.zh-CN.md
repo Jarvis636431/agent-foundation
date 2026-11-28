@@ -18,7 +18,7 @@ curl -fsS "$A13N_URL/api/v1/realtime/sessions" \
   -d "{\"agent_id\":\"$AGENT_ID\",\"transport\":\"websocket\",\"draft\":\"Say hello.\"}"
 ```
 
-申请前检查 `can_start` 和 `transports`。查询结果也会返回 PCM 采样率、配置的会话时长上限，以及模型是否支持手动打断。当前 Alpha 输入协议尚未接入图片附件，`accepts_images` 为 `false`，`supported_image_types` 为空。
+申请前检查 `can_start` 和 `transports`。查询结果也会返回 PCM 采样率、配置的会话时长上限，以及模型是否支持手动打断。通过 `accepts_images`、`supported_image_types` 和 `max_images_per_input` 查看所选模型是否支持图片附件、支持的图片格式及每条输入的图片数量上限。
 
 后端只把票据响应交给音频客户端。客户端应在 `expires_in`（30 秒）内连接 Service 同源的 `websocket_path`，按顺序将协议名和票据作为 WebSocket 子协议传入：
 

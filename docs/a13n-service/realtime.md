@@ -18,7 +18,7 @@ curl -fsS "$A13N_URL/api/v1/realtime/sessions" \
   -d "{\"agent_id\":\"$AGENT_ID\",\"transport\":\"websocket\",\"draft\":\"Say hello.\"}"
 ```
 
-Check `can_start` and `transports` before creating a ticket. Availability also reports PCM sample rates, the configured maximum duration and whether the model supports manual interruption. Image attachments are not part of the Alpha input protocol described here; `accepts_images` is `false` and `supported_image_types` is empty.
+Check `can_start` and `transports` before creating a ticket. Availability also reports PCM sample rates, the configured maximum duration and whether the model supports manual interruption. Check `accepts_images`, `supported_image_types` and `max_images_per_input` for the selected model's image attachment support.
 
 Pass only the ticket response to the media client. Redeem the ticket within `expires_in` (30 seconds) by connecting to `websocket_path` on the Service origin. Offer the protocol and ticket, in that order:
 
