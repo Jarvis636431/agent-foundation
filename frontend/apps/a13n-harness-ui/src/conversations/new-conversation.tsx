@@ -474,6 +474,9 @@ function NewConversation({
     defaults.agent_id ?? effective?.agent_source.id,
     effective?.default_model_id ??
       (selectors.data ? (effectiveAgent?.model_id ?? null) : undefined),
+    undefined,
+    undefined,
+    selectors.data?.models,
   );
   const effectiveEnvironment = selectors.data?.environments.find(
     (item) => item.profile_id === effective?.environment_profile_id,
@@ -707,6 +710,7 @@ function NewConversation({
             </p>
           )}
           <Composer
+            routeForModel={runChoices.routeForModel}
             dictation={
               selectors.data?.dictation
                 ? { words: selectors.data.dictation.context_words ?? 2000 }
@@ -788,7 +792,7 @@ function NewConversation({
                   defaultAgentId={effectiveAgent?.agent_id}
                   defaultModelId={effective?.default_model_id}
                   modelId={composerDraft.modelId}
-                  controls={composerDraft.controls}
+                  controls={runChoices.effectiveControls}
                   onControlsChange={runChoices.onControlsChange}
                   disabled={choicesDisabled}
                   onAgentChange={(value) => {

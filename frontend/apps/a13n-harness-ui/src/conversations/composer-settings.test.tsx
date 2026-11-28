@@ -30,7 +30,7 @@ const catalog: Schema<"ThreadSelectorCatalog"> = {
     {
       model_id: "one",
       name: "Model One",
-      route: "openai-codex:gpt-6-astra",
+      route: "openai-responses:gpt-6-astra",
       fast: { supported: true, state: "off", ultrafast_supported: true },
       reasoning_mode: { supported: true, state: "pro" },
       thinking: {
@@ -160,6 +160,10 @@ function Input({
     <Composer
       local
       threadId="thread-responsive"
+      routeForModel={(id) =>
+        selectors.models?.find((model) => model.model_id === (id ?? "one"))
+          ?.route
+      }
       activity={{ state: "inactive" }}
       coordinator={{ active: false, available: true }}
       profile={{ display_name: "Tester", color: "#000000" }}
@@ -330,6 +334,29 @@ it.each([false, true])(
     expect(editor.state.selection.toJSON()).toEqual(selection);
     expect(draft.submission.kind).toBe("idle");
     expect(post).not.toHaveBeenCalled();
+  },
+);
+
+it.each(["pro", "standard"] as const)(
+  "hides stale Codex %s and keeps the other model controls",
+  async (mode) => {
+    const user = userEvent.setup();
+    draft.controls = { reasoning_mode: mode, thinking: "low", fast: false };
+    mount({
+      ...catalog,
+      models: catalog.models?.map((model) =>
+        model.model_id === "one"
+          ? { ...model, route: "openai-codex:gpt-6-astra" }
+          : model,
+      ),
+    });
+    await user.click(
+      screen.getByRole("button", { name: "Agent & Model settings" }),
+    );
+    expect(screen.queryByRole("button", { name: "Reasoning mode" })).toBeNull();
+    expect(screen.queryByText("Unavailable selection")).toBeNull();
+    expect(screen.getByRole("button", { name: "Thinking" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Speed" })).toBeTruthy();
   },
 );
 

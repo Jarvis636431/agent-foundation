@@ -1,3 +1,4 @@
+import { isCodexRoute } from "../model-route";
 import type { ThreadDraft } from "./draft";
 
 /** Import the former per-browser choice once, only into pristine shared options. */
@@ -6,6 +7,7 @@ export function initializeLegacyRunChoices(
   draft: ThreadDraft,
   agent: string | undefined,
   inheritedModel: string | null | undefined,
+  routeForModel?: (id: string) => string | undefined,
 ) {
   if (!draft.synchronized) return;
   const key = `a13n-harness-ui.run-choices.${threadId}`;
@@ -51,7 +53,7 @@ export function initializeLegacyRunChoices(
       model_id: saved.override,
       thinking,
       fast,
-      reasoning_mode,
+      ...(!isCodexRoute(routeForModel?.(saved.model)) && { reasoning_mode }),
     };
   } catch {
     // Unavailable storage or malformed legacy records do not block the composer.

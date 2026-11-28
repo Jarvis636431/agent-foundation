@@ -62,7 +62,7 @@ from a13n_harness_ui.composition import (
     RunCompositionService,
     ThreadCompositionSelection,
 )
-from a13n_harness_ui.composition.models import ResolvedAcpNode
+from a13n_harness_ui.composition.models import ResolvedAcpNode, normalize_codex_model_overrides
 from a13n_harness_ui.configuration import LoadedHarnessUiConfiguration, canonical_digest
 from a13n_harness_ui.conversation import ConversationExcerpt, ExcerptCollector, checkpoint_excerpt
 from a13n_harness_ui.diagnostics import exception_feedback
@@ -571,7 +571,7 @@ class RootRunExecutor:
             source = await self._required_configuration()
             if model_overrides is None and previous is not None:
                 # Nobody selected a Model for this admission; keep the previous Run's selection.
-                model_overrides = previous.model_overrides
+                model_overrides = normalize_codex_model_overrides(previous.root.model, previous.model_overrides)
             published = await self._compositions.publish(source, selection, model_overrides=model_overrides)
         else:
             captured = await self._store.objects.read_model(restart.composition, ResolvedRunComposition)

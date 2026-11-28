@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 from a13n_harness_ui.app import open_harness_ui_app
+from a13n_harness_ui.composition import resolver as composition_resolver
 from a13n_harness_ui.errors import ThreadError
 from a13n_harness_ui.model_runtime import HarnessUiModelResolver
 from a13n_harness_ui.surfaces import (
@@ -131,6 +132,52 @@ async def test_run_without_model_selection_reuses_previous_run_selection(tmp_pat
         reset = await app.submit_thread(thread_id=target.thread_id, prompt="Reset", model_overrides=RunModelOverrides())
         assert (await captured_agent(reset.receipt_id)).model_id == "model-primary"
         assert (await message()).model_id == "model-primary"
+
+
+async def test_historical_codex_mode_does_not_carry_to_the_same_model_on_api(tmp_path, monkeypatch):
+    root = configuration(tmp_path)
+    model = tmp_path / "models/secondary.yaml"
+    api_source = model.read_text().replace("openai:gpt-5", "openai-responses:gpt-5.6-sol")
+    model.write_text(
+        api_source.replace("openai-responses:", "openai-codex:")
+        .replace("{kind: api_key, env: PRIVATE_MODEL_KEY}", "{kind: codex_subscription}")
+        .replace("model_configuration: {base_url: 'https://private.test'}\n", "")
+    )
+
+    async def stream(messages, info):
+        yield "Completed"
+
+    async def resolve(self, context, model_id):
+        return FunctionModel(stream_function=stream)
+
+    monkeypatch.setattr(HarnessUiModelResolver, "__call__", resolve)
+    settings = _settings(tmp_path / "data").model_copy(update={"pricing_auto_update": False})
+    async with open_harness_ui_app(settings, configuration_path=root) as app:
+        thread = await app.create_thread()
+
+        async def run(prompt, overrides=None):
+            receipt = await app.submit_thread(thread_id=thread.thread_id, prompt=prompt, model_overrides=overrides)
+            assert (await app.wait_root_operation(receipt.receipt_id)).status is RootOperationStatus.completed
+            return (await app.inspect_operation_configuration(receipt.receipt_id)).agent
+
+        with monkeypatch.context() as legacy:
+            # Reproduce a pre-upgrade capture with an unsanitized selection.
+            legacy.setattr(composition_resolver, "normalize_codex_model_overrides", lambda model, overrides: overrides)
+            previous = await run(
+                "Codex", RunModelOverrides(model_id="model-secondary", reasoning_mode="pro", thinking="low", fast=False)
+            )
+        assert previous.model_id == "model-secondary"
+        assert previous.reasoning_mode == "default"
+
+        model.write_text(api_source)
+        await app.reload_configuration()
+        inherited = await run("Inherit the selection")
+        assert inherited.model_id == "model-secondary"
+        assert inherited.reasoning_mode == "default"
+        assert inherited.thinking_summary == "Low"
+        assert inherited.fast == "off"
+        explicit = await run("Use API Pro", RunModelOverrides(model_id="model-secondary", reasoning_mode="pro"))
+        assert explicit.reasoning_mode == "pro"
 
 
 async def test_missing_default_model_rejects_creation_and_patch_without_fallback(tmp_path):

@@ -11,6 +11,7 @@ import {
 import { FastPicker } from "./fast-picker";
 import { SpeedIndicator } from "./speed-indicator";
 import { selectedSpeedState, speedLabel } from "./speed-label";
+import { isCodexRoute } from "../model-route";
 import styles from "./composer-settings.module.css";
 
 export type ModelControlValues = Pick<
@@ -26,9 +27,13 @@ export type ModelControlProps = {
 /** Copy before asynchronous preparation; null means inherit, false is explicit. */
 export function modelControlRequest(
   values: ModelControlValues,
+  route?: string,
 ): ModelControlValues {
   return Object.fromEntries(
-    Object.entries(values).filter(([, value]) => value != null),
+    Object.entries(values).filter(
+      ([key, value]) =>
+        value != null && (key !== "reasoning_mode" || !isCodexRoute(route)),
+    ),
   );
 }
 
@@ -46,9 +51,10 @@ export function ModelControlPanel({
   const settings = useComposerSettings()!;
   const reasoning = model?.reasoning_mode;
   const showReasoning =
-    reasoning?.supported ||
-    controls.reasoning_mode != null ||
-    (reasoning && reasoning.state !== "default");
+    !isCodexRoute(model?.route) &&
+    (reasoning?.supported ||
+      controls.reasoning_mode != null ||
+      (reasoning && reasoning.state !== "default"));
   const choose = (next: ModelControlValues) => {
     onControlsChange({ ...controls, ...next });
     settings.navigate("root");
@@ -71,7 +77,7 @@ export function ModelControlPanel({
         onChange={(fast) => choose({ fast })}
       />
     );
-  if (settings.page === "reasoning")
+  if (settings.page === "reasoning" && showReasoning)
     return (
       <ReasoningModePicker
         control={reasoning}
@@ -80,7 +86,7 @@ export function ModelControlPanel({
         onChange={(reasoning_mode) => choose({ reasoning_mode })}
       />
     );
-  if (settings.page !== "root") return null;
+  if (settings.page !== "root" && settings.page !== "reasoning") return null;
   const speed = selectedSpeedState(model?.fast?.state, controls.fast);
   return (
     <div className={styles.modelControls}>

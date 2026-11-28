@@ -16,7 +16,12 @@ from a13n_harness_ui.interactive.rendering import Status, StreamRenderer
 from a13n_harness_ui.settings import HarnessUiSettings, StorageSettings
 from pydantic_ai.models.function import FunctionModel
 
-from .test_interactive import _retained_history, _seed, no_real_model_requests  # noqa: F401  (autouse guard)
+from .test_interactive import (
+    _configure_api_reasoning_model,
+    _retained_history,
+    _seed,
+    no_real_model_requests,  # noqa: F401  (autouse guard)
+)
 
 pytestmark = pytest.mark.usefixtures("migrated_databases")
 
@@ -778,7 +783,7 @@ async def test_resume_saved_default_preserves_session_controls(tmp_path, monkeyp
     from a13n_harness_ui.surfaces import NewThreadDefaults
 
     path = await _seed(tmp_path, monkeypatch)
-    model_path = path.parent / "models/codex.yaml"
+    model_path = _configure_api_reasoning_model(path, monkeypatch)
     model = yaml.safe_load(model_path.read_text())
     model["settings"]["openai_reasoning_mode"] = "pro"
     model_path.write_text(yaml.safe_dump(model))

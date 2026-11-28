@@ -7,7 +7,7 @@ from a13n_harness_ui.model_reasoning_mode import apply_reasoning_mode, describe_
 from a13n_harness_ui.webui import SubmitRequest
 
 
-@pytest.mark.parametrize("provider", ["openai", "openai-responses", "openai-codex"])
+@pytest.mark.parametrize("provider", ["openai", "openai-responses"])
 @pytest.mark.parametrize("selected", ["standard", "pro", None])
 def test_mode_is_independent_and_does_not_mutate_model(provider, selected):
     route = f"{provider}:gpt-5.6-sol"
@@ -16,6 +16,21 @@ def test_mode_is_independent_and_does_not_mutate_model(provider, selected):
     assert effective == {**settings, "openai_reasoning_mode": selected or "pro", "service_tier": "default"}
     assert settings == {"openai_reasoning_mode": "pro", "openai_reasoning_summary": "detailed", "thinking": "high"}
     assert describe_model_controls(route, settings).reasoning_mode.state == "pro"
+
+
+@pytest.mark.parametrize("stored", ["standard", "pro"])
+@pytest.mark.parametrize("selected", ["standard", "pro", None])
+def test_codex_normalizes_stored_and_requested_modes(stored, selected):
+    route = "openai-codex:gpt-5.6-sol"
+    other = {"thinking": "high", "extra_body": {"reasoning": {"summary": "detailed"}}}
+    settings = {**other, "openai_reasoning_mode": stored}
+    assert apply_reasoning_mode(route, settings, selected) == other
+    assert describe_reasoning_mode(route, settings).model_dump() == {
+        "supported": False,
+        "state": "default",
+        "reason": "Reasoning mode is not available for this model connection.",
+    }
+    assert settings == {**other, "openai_reasoning_mode": stored}
 
 
 @pytest.mark.parametrize(

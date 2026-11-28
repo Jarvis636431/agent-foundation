@@ -1802,6 +1802,34 @@ async def test_reasoning_mode_capture_preserves_model_and_independent_children(t
     assert captured_configuration("capture", composition).agent.reasoning_mode == (mode or "pro")
 
 
+@pytest.mark.parametrize("mode", [None, "standard", "pro"])
+async def test_codex_mode_is_omitted_from_composition_without_rewriting_the_model(tmp_path, mode):
+    from a13n_harness_ui.configuration_inspection import captured_configuration
+    from a13n_harness_ui.surfaces import RunModelOverrides
+
+    path = _write_source(tmp_path)
+    model = tmp_path / "models/primary.yaml"
+    model.write_text(
+        model.read_text()
+        .replace("route: openai:gpt-5", "route: openai-codex:gpt-5.6-sol")
+        .replace("{kind: api_key, env: OPENAI_API_KEY}", "{kind: codex_subscription}")
+        .replace(
+            "settings: {temperature: 0}", "settings: {openai_reasoning_mode: pro, openai_reasoning_summary: detailed}"
+        )
+    )
+    original_bytes = model.read_bytes()
+    source = await load_harness_ui_configuration(path)
+    composition = AgentCompositionResolver(_catalog()).resolve_run(
+        source, _selection(), model_overrides=RunModelOverrides(reasoning_mode=mode) if mode else None
+    )
+    assert composition.root.model.settings == {"openai_reasoning_summary": "detailed"}
+    assert composition.model_overrides is None
+    assert composition.root.children[0].definition.model == composition.root.model
+    assert captured_configuration("capture", composition).agent.reasoning_mode == "default"
+    assert source.models["model-primary"].settings["openai_reasoning_mode"] == "pro"
+    assert model.read_bytes() == original_bytes
+
+
 async def test_run_configuration_is_captured_for_root_and_children(tmp_path: Path) -> None:
     path = _write_source(tmp_path)
     with path.open("a") as stream:

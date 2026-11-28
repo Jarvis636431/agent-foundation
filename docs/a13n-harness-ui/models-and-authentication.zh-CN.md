@@ -53,6 +53,8 @@ model_characteristics:
 
 3. 运行 `a13n-harness-ui config validate`，随后在对话中执行 `/model model-codex` 并发送测试消息。
 
+Codex 订阅模型使用提供方的默认推理模式。Harness UI 隐藏**推理模式**选项，发送或重试时会忽略以前选择的 Pro 或 Standard。推理强度和速度仍可调整。支持该功能的 OpenAI Responses API 模型提供显式推理模式选项。
+
 ## 模型文件参考
 
 每个模型文件均需包含 `schema_version: "1"`、`kind: model`、唯一的 `model-` 前缀 ID 以及 `name`：

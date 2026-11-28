@@ -279,6 +279,17 @@ def test_prepare_json_roundtrip_materializes_only_omitted_capabilities(explicit_
     assert saved["compact_threshold"] == 0.8
 
 
+@pytest.mark.parametrize("mode", ["standard", "pro"])
+def test_codex_recipe_drops_explicit_reasoning_mode(mode):
+    settings = {"openai_reasoning_mode": mode, "thinking": "high"}
+    options = model_options(ModelOptionsRequest(connection="codex", model_id="gpt-5.6-sol", settings=settings))
+    assert not options.reasoning_mode.supported
+    assert options.reasoning_mode.state == "default"
+    prepared = prepare_model(ModelRecipeRequest(connection="codex", model_id="gpt-5.6-sol", settings=settings))
+    assert prepared.settings == {"thinking": "high"}
+    assert settings["openai_reasoning_mode"] == mode
+
+
 def test_model_options_describe_agent_tools_without_mutating_model_recipe() -> None:
     options = model_options(ModelOptionsRequest(connection="codex", model_id="gpt-5.6-sol"))
     search = next(tool for tool in options.native_tools if tool.value == "web_search")

@@ -237,8 +237,8 @@ class SessionBackend:
             self.status.reasoning_mode = reasoning_mode_state(model.route, mode_settings)
             self.status.reasoning_mode_description = (
                 (default_label if default_mode == "default" else f"{default_label} (Model default)")
-                if self.overrides.reasoning_mode is None
-                else f"{self.overrides.reasoning_mode.capitalize()} (session override; Model default: {default_label})"
+                if self.overrides.reasoning_mode is None or self.status.reasoning_mode == "default"
+                else f"{self.status.reasoning_mode.capitalize()} (session override; Model default: {default_label})"
             )
         except HarnessUiError:
             self.status.reasoning_mode = "unavailable"

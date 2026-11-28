@@ -1,4 +1,6 @@
-import { useLayoutEffect } from "react";
+import { useCallback, useLayoutEffect } from "react";
+import type { Schema } from "../transport/client";
+import { isCodexRoute } from "../model-route";
 import type { ThreadDraft } from "./draft";
 import type { ModelControlValues } from "./model-controls";
 import { initializeLegacyRunChoices } from "./legacy-run-choices";
@@ -15,12 +17,25 @@ export function useComposerRunChoices(
   inheritedModel: string | null | undefined,
   refreshConfiguration?: () => Promise<Configuration | undefined>,
   legacyThreadId?: string,
+  models?: readonly Pick<Schema<"ModelSummary">, "model_id" | "route">[],
 ) {
+  const routeForModel = useCallback(
+    (modelId?: string | null) =>
+      models?.find((model) => model.model_id === (modelId ?? inheritedModel))
+        ?.route,
+    [models, inheritedModel],
+  );
   const saved = draft.modelOptions;
   const savedKey = JSON.stringify(saved);
   useLayoutEffect(() => {
     if (legacyThreadId)
-      initializeLegacyRunChoices(legacyThreadId, draft, agent, inheritedModel);
+      initializeLegacyRunChoices(
+        legacyThreadId,
+        draft,
+        agent,
+        inheritedModel,
+        routeForModel,
+      );
   }, [
     draft,
     legacyThreadId,
@@ -28,6 +43,7 @@ export function useComposerRunChoices(
     inheritedModel,
     savedKey,
     draft.synchronized,
+    routeForModel,
   ]);
   const mismatch = (configuration: Configuration) =>
     !!saved?.agent &&
@@ -67,7 +83,16 @@ export function useComposerRunChoices(
     refreshConfiguration,
   ]);
 
+  function controlsForModel(
+    modelId: string | undefined,
+    controls: ModelControlValues,
+  ) {
+    if (!isCodexRoute(routeForModel(modelId))) return controls;
+    const { reasoning_mode: _mode, ...remaining } = controls;
+    return remaining;
+  }
   function choose(modelId: string | undefined, controls: ModelControlValues) {
+    controls = controlsForModel(modelId, controls);
     draft.modelOptions =
       modelId || Object.values(controls).some((value) => value != null)
         ? {
@@ -79,6 +104,8 @@ export function useComposerRunChoices(
         : undefined;
   }
   return {
+    routeForModel,
+    effectiveControls: controlsForModel(draft.modelId, draft.controls),
     pending:
       !!saved?.agent &&
       (!agent ||

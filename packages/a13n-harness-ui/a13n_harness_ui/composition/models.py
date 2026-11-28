@@ -239,6 +239,21 @@ class ResolvedAcpNode(CompositionModel):
     base_agent_id: ClassVar[None] = None
 
 
+def normalize_codex_model_overrides(
+    model: ResolvedModelRecipe | None, overrides: RunModelOverrides | None
+) -> RunModelOverrides | None:
+    """Keep the supported choices when capturing or inheriting a Codex selection."""
+    if (
+        model is None
+        or not model.route.startswith("openai-codex:")
+        or overrides is None
+        or overrides.reasoning_mode is None
+    ):
+        return overrides
+    remaining = overrides.model_copy(update={"reasoning_mode": None})
+    return remaining if remaining.model_dump(exclude_none=True) else None
+
+
 class ResolvedRunComposition(CompositionModel):
     origin_browser_id: BrowserId | None = Field(default=None, exclude_if=lambda value: value is None)
     schema_version: Literal["1"] = "1"

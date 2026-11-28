@@ -197,6 +197,7 @@ export async function submitDraft(
   retryParts?: OrderedInputPart[],
   externalAgent = false,
   acpCommands?: readonly Schema<"AcpCommand">[],
+  routeForModel?: (id?: string | null) => string | undefined,
 ) {
   if (
     draft.submission.kind === "pending" ||
@@ -294,8 +295,11 @@ export async function submitDraft(
       const { environment, mode } = captured.options;
       const model = externalAgent ? undefined : captured.options.model;
       const { thinking, fast, reasoning_mode } = model ?? {};
-      const controls = modelControlRequest({ thinking, fast, reasoning_mode });
       const selectedModel = model?.model_id;
+      const controls = modelControlRequest(
+        { thinking, fast, reasoning_mode },
+        routeForModel?.(selectedModel),
+      );
       const accepted = await result(
         transport.client.POST("/api/threads/{thread_id}/submit", {
           headers: await browserSubmissionHeaders(),
@@ -397,6 +401,7 @@ export function submitContinuation(
   prepare?: () => Promise<void>,
   captureAppContext?: () => Schema<"AppContextReference">[],
   retryParts?: OrderedInputPart[],
+  routeForModel?: (id?: string | null) => string | undefined,
 ) {
   return submitDraft(
     draft,
@@ -416,6 +421,9 @@ export function submitContinuation(
     },
     captureAppContext,
     retryParts,
+    undefined,
+    undefined,
+    routeForModel,
   );
 }
 
@@ -573,6 +581,7 @@ export function Composer({
   onReviewOutcome,
   controls,
   leadingControls,
+  routeForModel,
   renderHeader,
   threadId,
   activity,
@@ -625,6 +634,7 @@ export function Composer({
   onReviewOutcome?: () => void;
   controls?: () => ReactNode;
   leadingControls?: ReactNode;
+  routeForModel?: (id?: string | null) => string | undefined;
   renderHeader?: (identity: ReactNode) => ReactNode;
 }) {
   const canRun = !runBlock;
@@ -1111,6 +1121,7 @@ export function Composer({
         undefined,
         externalAgent,
         acpCommands,
+        routeForModel,
       );
       reconcile();
       if (submitted && !controller.signal.aborted) await onSubmitted?.();

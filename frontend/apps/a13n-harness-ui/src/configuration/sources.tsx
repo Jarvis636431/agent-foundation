@@ -30,6 +30,7 @@ import { AcpAuth } from "./acp-auth";
 import { ResourceFields, type RootSettingsGroup } from "./fields";
 import { BrowserConfigurationFields } from "./browser-runtime";
 import {
+  normalizeModelSourceForSave,
   readDocument,
   resourceKinds,
   template,
@@ -903,7 +904,16 @@ export function SourceDocument({
             <Button
               loading={save.isPending}
               disabled={!dirty || (kind === "model" && !modelReady)}
-              onClick={() => save.mutate(draft!.content)}
+              onClick={() => {
+                const current = draft!;
+                const content =
+                  kind === "model"
+                    ? normalizeModelSourceForSave(current.content)
+                    : current.content;
+                if (content !== current.content)
+                  update({ ...current, content });
+                save.mutate(content);
+              }}
             >
               {isNew ? t("Create") : t("Save")}
             </Button>

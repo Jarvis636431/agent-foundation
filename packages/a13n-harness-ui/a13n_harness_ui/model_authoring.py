@@ -36,7 +36,7 @@ from a13n_harness_ui.model_presets import (
 )
 from a13n_harness_ui.model_providers.catalog import Registration
 from a13n_harness_ui.model_providers.sdk import PluginModelSuggestion
-from a13n_harness_ui.model_reasoning_mode import ReasoningModeControl, describe_reasoning_mode
+from a13n_harness_ui.model_reasoning_mode import ReasoningModeControl, apply_reasoning_mode, describe_reasoning_mode
 from a13n_harness_ui.resource_names import model_name
 
 type AuthenticationKind = Literal[
@@ -615,7 +615,7 @@ def prepare_model(
         route=options.route,
         base_model=options.base_model,
         authentication=authentication,
-        settings=settings,
+        settings=apply_reasoning_mode(options.route, settings, None),
         model_configuration=configuration,
         model_characteristics=_characteristics(
             options.base_model or options.route,

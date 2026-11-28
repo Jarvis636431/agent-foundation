@@ -958,7 +958,8 @@ function ConversationContent({
             ?.model_id ?? null)
         : undefined),
     refreshRunConfiguration,
-    guest ? undefined : threadId,
+    !guest && selectors.isSuccess ? threadId : undefined,
+    selectors.data?.models,
   );
   const unavailable =
     !publication &&
@@ -1168,6 +1169,7 @@ function ConversationContent({
                 undefined,
                 () => appContexts?.capture(threadId) ?? [],
                 acpAuthFailure ? retryParts : undefined,
+                runChoices.routeForModel,
               ).finally(reconcile);
             }
       }
@@ -1563,6 +1565,7 @@ function ConversationContent({
         )}
         {showComposer && (
           <Composer
+            routeForModel={runChoices.routeForModel}
             renderHeader={renderWorkInspector}
             worktreeAvailable={worktreeAvailable}
             dictation={dictation}
@@ -1657,7 +1660,7 @@ function ConversationContent({
                       agentId={thread?.configuration.agent_source.id ?? ""}
                       defaultModelId={thread?.configuration.default_model_id}
                       modelId={draft.modelId}
-                      controls={draft.controls}
+                      controls={runChoices.effectiveControls}
                       onControlsChange={runChoices.onControlsChange}
                       disabled={
                         !thread ||

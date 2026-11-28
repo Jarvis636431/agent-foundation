@@ -6,6 +6,7 @@ import time
 from collections.abc import Iterator, Mapping
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from types import MappingProxyType
 from urllib.parse import parse_qs, urlsplit
 
 import anyio
@@ -1283,6 +1284,40 @@ async def test_codex_official_dialect_and_cached_credentials_are_used_without_ga
     for body in bodies:
         assert body["stream"] is True and body["store"] is False
         assert not {"max_output_tokens", "temperature", "top_p"} & body.keys()
+
+
+@pytest.mark.parametrize("mode", ["standard", "pro"])
+@pytest.mark.parametrize(
+    "extra_body",
+    [
+        None,
+        {"reasoning": {"mode": "pro"}},
+        MappingProxyType({"reasoning": MappingProxyType({"mode": "pro", "summary": "detailed"})}),
+    ],
+)
+async def test_codex_omits_reasoning_mode_from_the_request(mode, extra_body) -> None:
+    source = _CodexSource(_codex_credentials(marker="current", expires_at=datetime.now(UTC) + timedelta(hours=1)))
+    bodies = []
+
+    def handle(request: httpx2.Request) -> httpx2.Response:
+        bodies.append(json.loads(request.content))
+        return httpx2.Response(200, headers={"content-type": "text/event-stream"}, content=_responses_sse())
+
+    settings = OpenAIResponsesModelSettings(openai_reasoning_mode=mode, openai_reasoning_effort="high")
+    if extra_body is not None:
+        settings["extra_body"] = extra_body
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(handle)) as client:
+        model = CodexRequestModel("gpt-5.6-sol", credential_source=source, http_client=client)
+        await model.request([], settings, ModelRequestParameters())
+    reasoning = bodies[0]["reasoning"]
+    assert "mode" not in reasoning
+    if extra_body is not None and "summary" in extra_body["reasoning"]:
+        assert reasoning["summary"] == "detailed"
+    else:
+        assert reasoning["effort"] == "high"
+    assert settings["openai_reasoning_mode"] == mode
+    if extra_body is not None:
+        assert extra_body["reasoning"]["mode"] == "pro"
 
 
 async def test_codex_official_refresh_persistence_failure_keeps_rotated_memory() -> None:

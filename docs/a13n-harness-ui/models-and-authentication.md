@@ -53,6 +53,8 @@ model_characteristics:
 
 3. Run `a13n-harness-ui config validate`, then select `/model model-codex` and test a prompt.
 
+Codex subscription Models use the provider’s default reasoning mode. Harness UI hides **Reasoning mode** and ignores any older Pro or Standard selection when you send or retry. You can still adjust thinking effort and speed. Explicit Reasoning mode is available on supported OpenAI Responses API Models.
+
 ## Model file reference
 
 Every Model file requires `schema_version: "1"`, `kind: model`, a unique `model-` ID, and `name`:

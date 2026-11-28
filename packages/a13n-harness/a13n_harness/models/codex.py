@@ -150,9 +150,31 @@ class _CodexResponsesModel(ResponsesModel):
     def profile(self) -> OpenAIModelProfile:
         return {
             **super().profile,
+            "openai_responses_supports_reasoning_mode": False,
             "openai_responses_supports_websocket": True,
             "openai_responses_supports_websocket_stream_id": False,
         }
+
+    def prepare_request(
+        self,
+        model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
+    ) -> tuple[ModelSettings | None, ModelRequestParameters]:
+        settings, parameters = super().prepare_request(model_settings, model_request_parameters)
+        if settings is None:
+            return None, parameters
+        extra_body = settings.get("extra_body")
+        reasoning = extra_body.get("reasoning") if isinstance(extra_body, Mapping) else None
+        # The raw body is merged after profile-based rendering on both transports.
+        if not isinstance(extra_body, Mapping) or not isinstance(reasoning, Mapping) or "mode" not in reasoning:
+            return settings, parameters
+        body = dict(extra_body)
+        remaining = {key: value for key, value in reasoning.items() if key != "mode"}
+        if remaining:
+            body["reasoning"] = remaining
+        else:
+            del body["reasoning"]
+        return {**settings, "extra_body": body}, parameters
 
     def _websocket_unsupported_reason(self) -> str | None:
         # This adapter prepares the known Codex OAuth credentials before every reservation.

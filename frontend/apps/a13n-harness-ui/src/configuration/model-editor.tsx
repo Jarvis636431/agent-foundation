@@ -576,6 +576,10 @@ function LoadedModelEditor({
       )}
     </>
   );
+  const showReasoningMode =
+    selected?.provider !== "openai-codex" &&
+    (options.data?.reasoning_mode?.supported ||
+      value?.settings?.openai_reasoning_mode != null);
   const modelDefaults = selected && matches && value && (
     <>
       <SettingsSection>
@@ -628,8 +632,7 @@ function LoadedModelEditor({
             }
           }}
         />
-        {(options.data?.reasoning_mode?.supported ||
-          value.settings?.openai_reasoning_mode != null) && (
+        {showReasoningMode && (
           <ChoiceField
             label={t("Reasoning mode")}
             value={String(value.settings?.openai_reasoning_mode ?? "")}

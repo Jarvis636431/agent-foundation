@@ -886,7 +886,7 @@ it("does not submit after navigation cancels a pending skill catalog read", asyn
 
 it("continues with the shared draft and attachments and clears only accepted input", async () => {
   const draft = new ThreadDraft();
-  draft.controls = { thinking: "low" };
+  draft.controls = { thinking: "low", reasoning_mode: "pro" };
   draft.doc.getText("text").insert(0, "Keep my next question");
   draft.addAttachment("attachment-kept");
   draft.receive({
@@ -902,7 +902,15 @@ it("continues with the shared draft and attachments and clears only accepted inp
     }),
   );
   const transport = { client: { POST: post } } as unknown as Transport;
-  const pending = submitContinuation(draft, transport, "thread-one");
+  const pending = submitContinuation(
+    draft,
+    transport,
+    "thread-one",
+    undefined,
+    undefined,
+    undefined,
+    () => "openai-codex:gpt-6-astra",
+  );
   await submitContinuation(draft, transport, "thread-one");
   await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
   expect(post).toHaveBeenCalledWith("/api/threads/{thread_id}/submit", {

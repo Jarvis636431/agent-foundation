@@ -14,6 +14,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { parse } from "yaml";
 import { MemoryRouter } from "react-router";
 import { ModelFields } from "./model-editor";
+import { normalizeModelSourceForSave } from "./documents";
 import { AddModelButton } from "./models";
 import { i18n } from "../i18n";
 
@@ -499,6 +500,32 @@ it("edits the permanent reasoning mode without clobbering effort, and removes on
     temperature: 0.3,
     openai_reasoning_summary: "detailed",
   });
+});
+
+it("hides Codex reasoning mode and removes the old setting only when saving", async () => {
+  const initial = original
+    .replace("openai-responses:old-custom", "openai-codex:reviewed")
+    .replace(
+      "kind: api_key, credential_ref: key-saved",
+      "kind: codex_subscription",
+    )
+    .replace(
+      "  thinking: high",
+      "  thinking: high\n  openai_reasoning_mode: pro",
+    );
+  mount(initial);
+  await openDefaults(userEvent.setup());
+  expect(screen.queryByRole("combobox", { name: "Reasoning mode" })).toBeNull();
+  expect(source()).toBe(initial);
+  const saved = normalizeModelSourceForSave(source());
+  expect(saved).toContain("# Keep custom setting");
+  expect(parse(saved).settings).toEqual({
+    temperature: 0.3,
+    thinking: "high",
+    max_tokens: 4000,
+  });
+  const api = initial.replace("openai-codex:", "openai-responses:");
+  expect(normalizeModelSourceForSave(api)).toBe(api);
 });
 
 function mountAddModel() {

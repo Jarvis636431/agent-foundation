@@ -29,13 +29,15 @@ def _conflict(settings: Mapping[str, JsonValue]) -> bool:
 
 def _supported(route: str) -> bool:
     provider, _, name = route.partition(":")
-    return provider in {"openai", "openai-responses", "openai-codex"} and bool(
+    return provider in {"openai", "openai-responses"} and bool(
         openai_model_profile(name).get("openai_responses_supports_reasoning_mode")
     )
 
 
 def reasoning_mode_state(route: str, settings: Mapping[str, JsonValue]) -> ReasoningModeState:
     """Describe authored/captured intent, not provider entitlement or observed execution."""
+    if route.startswith("openai-codex:"):
+        return "default"
     if _conflict(settings):
         return "custom"
     value = settings.get("openai_reasoning_mode")
@@ -61,6 +63,9 @@ def apply_reasoning_mode(
     route: str, settings: Mapping[str, JsonValue], selected: ReasoningMode | None
 ) -> dict[str, JsonValue]:
     effective = dict(settings)
+    if route.startswith("openai-codex:"):
+        effective.pop("openai_reasoning_mode", None)
+        return effective
     if selected is None:
         return effective
     control = describe_reasoning_mode(route, settings)

@@ -59,6 +59,7 @@ from a13n_harness_ui.guardian_credits import supports_guardian_credits
 from a13n_harness_ui.memory import ORGANIZATION_PROMPT
 from a13n_harness_ui.model_adapters import PydanticAiModelAdapter, service_tier_setting
 from a13n_harness_ui.model_controls import apply_model_controls
+from a13n_harness_ui.model_reasoning_mode import apply_reasoning_mode
 from a13n_harness_ui.prompts import BOT_INSTRUCTIONS, DEFAULT_SYSTEM_PROMPT
 from a13n_harness_ui.storage.contracts import Thread, ThreadConfiguration
 from a13n_harness_ui.surfaces import RunModelOverrides
@@ -78,6 +79,7 @@ from .models import (
     ResolvedRunComposition,
     ResolvedRunExtensionRecipe,
     ResolvedSubagent,
+    normalize_codex_model_overrides,
 )
 
 PACKAGE_SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT
@@ -414,6 +416,7 @@ class AgentCompositionResolver:
             root = self.resolve_agent(
                 source, selection, parent_node=parent_node, dynamic_node=dynamic_node, model_overrides=model_overrides
             )
+        model_overrides = normalize_codex_model_overrides(root.model, model_overrides)
         environment = self.environment_profile(source, selection.environment_profile_id)
         run_extensions, extension_dependencies = self._run_extensions(source, selection.environment_run_extension_ids)
         dependencies = [
@@ -904,7 +907,7 @@ class AgentCompositionResolver:
             )
         normalized = self._model_adapter.validate(
             route=item.route,
-            settings=item.settings,
+            settings=apply_reasoning_mode(item.route, item.settings, None),
             model_cfg=item.model_configuration,
         )
         group = None

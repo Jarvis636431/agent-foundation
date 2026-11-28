@@ -1,4 +1,5 @@
 import { isMap, parseDocument, stringify } from "yaml";
+import { isCodexRoute } from "../model-route";
 
 export type ResourceKind =
   | "model"
@@ -115,5 +116,16 @@ export function updateDocument(
   if (!document) throw new Error("Fix the YAML syntax before editing fields.");
   if (value === undefined) document.deleteIn(path);
   else document.setIn(path, value);
+  return document.toString();
+}
+
+export function normalizeModelSourceForSave(source: string): string {
+  const document = readDocument(source);
+  if (
+    document?.get("kind") !== "model" ||
+    !isCodexRoute(document.get("route")) ||
+    !document.deleteIn(["settings", "openai_reasoning_mode"])
+  )
+    return source;
   return document.toString();
 }

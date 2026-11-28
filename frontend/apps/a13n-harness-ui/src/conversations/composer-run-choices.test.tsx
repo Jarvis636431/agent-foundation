@@ -187,6 +187,43 @@ it.each([false, true])(
   },
 );
 
+it("imports legacy Codex choices without the mode and drops it when updating controls", () => {
+  const draft = new ThreadDraft();
+  draft.receive(ownerFrame(draft));
+  const models = [{ model_id: "codex", route: "openai-codex:gpt-6-astra" }];
+  const key = "a13n-harness-ui.run-choices.codex-thread";
+  localStorage.setItem(
+    key,
+    JSON.stringify({
+      agent: "writer",
+      model: "codex",
+      controls: { reasoning_mode: "pro", thinking: "low" },
+    }),
+  );
+  const { result } = renderHook(() => {
+    useSyncExternalStore(draft.subscribe, draft.getSnapshot);
+    return useComposerRunChoices(
+      draft,
+      "writer",
+      "codex",
+      undefined,
+      "codex-thread",
+      models,
+    );
+  });
+  expect(draft.modelOptions).not.toHaveProperty("reasoning_mode");
+  expect(draft.controls.thinking).toBe("low");
+  act(() =>
+    result.current.onControlsChange({
+      reasoning_mode: "standard",
+      fast: false,
+    }),
+  );
+  expect(draft.modelOptions).not.toHaveProperty("reasoning_mode");
+  expect(draft.controls.fast).toBe(false);
+  localStorage.removeItem(key);
+});
+
 it("waits for matching Agent/defaults and ignores malformed legacy records", () => {
   const draft = new ThreadDraft();
   draft.receive(ownerFrame(draft));

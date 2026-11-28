@@ -1190,15 +1190,28 @@ async def test_fast_override_reaches_model_without_mutating_config_or_reasoning(
     assert all(item.read_bytes() == contents for item, contents in original.items())
 
 
+def _configure_api_reasoning_model(path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    import yaml
+
+    monkeypatch.setenv("OPENAI_API_KEY", "fixture-api-key")
+    model_path = path.parent / "models/codex.yaml"
+    document = yaml.safe_load(model_path.read_text())
+    document["route"] = "openai-responses:gpt-5.6-sol"
+    document["authentication"] = {"kind": "api_key", "env": "OPENAI_API_KEY"}
+    model_path.write_text(yaml.safe_dump(document))
+    root = yaml.safe_load(path.read_text())
+    root["live"] = {"enabled": False}
+    path.write_text(yaml.safe_dump(root))
+    return model_path
+
+
 @pytest.mark.anyio
 async def test_pro_uses_model_default_and_preserves_independent_controls(tmp_path, monkeypatch):
-    import a13n_harness_ui.model_accounts.codex_transport as runtime
     import yaml
 
     path = await _seed(tmp_path, monkeypatch)
-    model_path = path.parent / "models/codex.yaml"
+    model_path = _configure_api_reasoning_model(path, monkeypatch)
     document = yaml.safe_load(model_path.read_text())
-    document["route"] = "openai-codex:gpt-5.6-sol"
     document["settings"]["openai_reasoning_mode"] = "pro"
     document["settings"]["openai_reasoning_summary"] = "detailed"
     model_path.write_text(yaml.safe_dump(document))
@@ -1209,7 +1222,10 @@ async def test_pro_uses_model_default_and_preserves_independent_controls(tmp_pat
         observed.append(dict(info.model_settings))
         yield "Reply."
 
-    monkeypatch.setattr(runtime, "SubscriptionCodexModel", lambda *a, **kw: FunctionModel(stream_function=stream))
+    async def build_model(*args, **kwargs):
+        return FunctionModel(stream_function=stream)
+
+    monkeypatch.setattr("a13n_harness_ui.model_runtime.build_api_key_model", build_model)
     async with open_harness_ui_app(
         HarnessUiSettings(storage=StorageSettings(data_root=tmp_path / "data")), configuration_path=path
     ) as app:
@@ -1247,6 +1263,27 @@ async def test_pro_uses_model_default_and_preserves_independent_controls(tmp_pat
     assert [item["openai_reasoning_mode"] for item in observed] == ["standard", "pro"]
     assert all(item["openai_reasoning_summary"] == "detailed" for item in observed)
     assert model_path.read_bytes() == original
+
+
+@pytest.mark.anyio
+async def test_codex_pro_command_rejects_explicit_mode_and_ignores_stale_override(tmp_path, monkeypatch):
+    from a13n_harness_ui.surfaces import RunModelOverrides
+
+    path = await _seed(tmp_path, monkeypatch)
+    async with open_harness_ui_app(
+        HarnessUiSettings(storage=StorageSettings(data_root=tmp_path / "data")), configuration_path=path
+    ) as app:
+        backend = SessionBackend(app, CliRequest(), tmp_path, Status())
+        await backend.initialize()
+        backend.overrides = RunModelOverrides(reasoning_mode="pro")
+        await backend.refresh()
+        assert backend.status.reasoning_mode == "default"
+        assert backend.status.reasoning_mode_description == "Provider default"
+        for choice in ("on", "off"):
+            with pytest.raises(ValueError, match="not available for this model connection"):
+                await backend.pro(choice)
+        assert "Provider default" in await backend.pro("reset")
+        assert backend.overrides.reasoning_mode is None
 
 
 @pytest.mark.anyio
@@ -1316,7 +1353,7 @@ async def test_model_control_status_distinguishes_inheritance_overrides_and_prov
     import yaml
 
     path = await _seed(tmp_path, monkeypatch)
-    model_path = path.parent / "models/codex.yaml"
+    model_path = _configure_api_reasoning_model(path, monkeypatch)
     document = yaml.safe_load(model_path.read_text())
     document["settings"] = {"thinking": "high", "service_tier": "priority", "openai_reasoning_mode": "pro"}
     model_path.write_text(yaml.safe_dump(document))
